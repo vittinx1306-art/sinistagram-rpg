@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#080b14">
+  <title>Sinistagram | Coven Network</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Sinistagram início">
+        <span class="brand-mark">S<span class="signal">///</span></span>
+        <span class="brand-name">SINISTAGRAM<small>BY VOXTEK</small></span>
+      </a>
+
+      <div class="server-status"><span class="status-dot"></span> REDE DO COVEN OPERACIONAL</div>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view="feed"><span class="nav-icon">⌂</span> Feed <span class="nav-count">01</span></button>
+        <button class="nav-item" data-view="explore"><span class="nav-icon">⌕</span> Explorar</button>
+        <button class="nav-item" data-view="trending"><span class="nav-icon">↗</span> Em alta <span class="live-pill">AO VIVO</span></button>
+        <button class="nav-item" data-view="messages"><span class="nav-icon">▤</span> Mensagens <span class="unread">3</span></button>
+        <button class="nav-item" data-view="profile"><span class="nav-icon">◉</span> Meu perfil</button>
+      </nav>
+
+      <div class="sidebar-section">
+        <div class="section-label">SEUS CÍRCULOS <button id="addCircle" class="tiny-add" title="Adicionar círculo">+</button></div>
+        <button class="circle-link"><span class="circle-bullet crimson"></span> Westview</button>
+        <button class="circle-link"><span class="circle-bullet violet"></span> A Estrada das Bruxas</button>
+        <button class="circle-link"><span class="circle-bullet cyan"></span> Coven</button>
+      </div>
+
+      <div class="sidebar-bottom">
+        <div class="connection-card">
+          <div class="connection-top"><span class="status-dot"></span><span>CONEXÃO SEGURA?</span></div>
+          <p>Seus segredos estão sendo indexados para melhorar sua experiência.</p>
+          <span class="micro">TERMOS E CONDIÇÕES SE APLICAM</span>
+        </div>
+        <button class="user-mini" id="openProfile">
+          <span class="avatar avatar-user" id="sidebarAvatar">?</span>
+          <span class="user-mini-info"><strong id="sidebarName">Visitante da Rede</strong><small id="sidebarHandle">Entre para participar</small></span>
+          <span class="more">•••</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark">S<span class="signal">///</span></span><strong>SINISTAGRAM</strong></div>
+        <div class="breadcrumb"><span>SINISTAGRAM NETWORK</span><b>/</b><strong id="viewTitle">FEED PÚBLICO</strong></div>
+        <div class="top-actions">
+          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar personagens, tags..." aria-label="Buscar"></label>
+          <button class="icon-button" id="notificationsBtn" title="Notificações">♧<i></i></button>
+          <button class="new-post-top" id="authButton">ENTRAR</button><button class="new-post-top" id="jumpToComposer">＋ <span>Publicar</span></button>
+        </div>
+      </header>
+
+      <div class="content-grid">
+        <section class="feed-column">
+          <div class="welcome-banner">
+            <div class="banner-grid"></div>
+            <div class="banner-copy">
+              <div class="eyebrow"><span class="status-dot"></span> TRANSMISSÃO DA REDE</div>
+              <h1>O coven está<br><span>conectado.</span></h1>
+              <p>Uma rede. Um coven. Nenhum segredo permanece enterrado.</p>
+              <button id="exploreButton" class="outline-button">Acessar tendências <span>↗</span></button>
+            </div>
+            <div class="banner-orb"><div class="orb-inner">V</div><span class="orb-ring ring-one"></span><span class="orb-ring ring-two"></span><span class="orb-cross">+</span></div>
+            <div class="banner-code">VTK-SOCIAL<br>BUILD 6.66.0<br>COVEN://ONLINE</div>
+          </div>
+
+          <section class="stories-section">
+            <div class="section-heading"><div><span class="eyebrow">SINAL RECENTE</span><h2>Bruxas em atividade</h2></div><button class="text-button" id="allStories">Ver todos ↗</button></div>
+            <div class="stories" id="stories">
+              <button class="story add-story" id="addStory"><span class="story-ring"><span class="avatar avatar-user">+</span></span><span>Sua história</span></button>
+              <button class="story"><span class="story-ring red-ring"><span class="avatar avatar-alastor">A</span></span><span>agatha.harkness</span></button>
+              <button class="story"><span class="story-ring cyan-ring"><span class="avatar avatar-vox">B</span></span><span>billy.maximoff</span></button>
+              <button class="story"><span class="story-ring pink-ring"><span class="avatar avatar-angel">T</span></span><span>tommy.maximoff</span></button>
+              <button class="story"><span class="story-ring gold-ring"><span class="avatar avatar-charlie">R</span></span><span>rio.vidal</span></button>
+              <button class="story"><span class="story-ring violet-ring"><span class="avatar avatar-husk">N</span></span><span>nicholas.scratch</span></button>
+            </div>
+          </section>
+
+          <section class="composer" id="composer">
+            <div class="composer-head"><span class="avatar avatar-user" id="composerAvatar">?</span><div><strong>Transmitir para a rede</strong><small>Publicação visível para o RPG</small></div><span class="privacy-tag">PÚBLICO ▾</span></div>
+            <textarea id="postText" maxlength="500" placeholder="Entre na rede para publicar como seu personagem..." disabled></textarea>
+            <div class="composer-tools"><div class="tool-buttons"><button id="attachButton">▧ <span>Mídia</span></button><button id="tagButton"># <span>Hashtag</span></button><button id="moodButton">⌁ <span>Status</span></button></div><button id="publishButton" class="publish-button" disabled>TRANSMITIR <span>↗</span></button></div>
+            <input type="file" id="mediaInput" accept="image/*" hidden>
+            <div id="mediaPreview" class="media-preview" hidden></div>
+          </section>
+
+          <div class="feed-toolbar"><div><span class="eyebrow">LINHA DO TEMPO</span><h2 id="feedHeading">Últimas transmissões</h2></div><select id="sortSelect" aria-label="Ordenar publicações"><option value="recent">Mais recentes</option><option value="popular">Mais populares</option></select></div>
+          <div id="postFeed" class="post-feed" aria-live="polite"></div>
+          <div id="emptyState" class="empty-state" hidden><span class="empty-symbol">⌕</span><h3>Nenhuma transmissão encontrada</h3><p>Tente outra busca ou seja a primeira pessoa a publicar sobre isso.</p></div>
+        </section>
+
+        <aside class="right-column">
+          <section class="panel trends-panel">
+            <div class="panel-heading"><div><span class="eyebrow">SINAL EM TEMPO REAL</span><h2>Assuntos em alta</h2></div><span class="pulse-mark"></span></div>
+            <button class="trend-item" data-tag="#AgathaAllAlong"><span class="trend-rank">01</span><span class="trend-copy"><strong>#AgathaAllAlong</strong><small>A magia está no ar</small></span><span class="trend-volume">98.4k</span></button>
+            <button class="trend-item" data-tag="#WitchesRoad"><span class="trend-rank">02</span><span class="trend-copy"><strong>#WitchesRoad</strong><small>A Estrada chama</small></span><span class="trend-volume">76.1k</span></button>
+            <button class="trend-item" data-tag="#Coven"><span class="trend-rank">03</span><span class="trend-copy"><strong>#Coven</strong><small>Alianças e segredos</small></span><span class="trend-volume">42.7k</span></button>
+            <button class="trend-item" data-tag="#Darkhold"><span class="trend-rank">04</span><span class="trend-copy"><strong>#Darkhold</strong><small>Conhecimento proibido</small></span><span class="trend-volume">18.2k</span></button>
+            <button class="trend-item" data-tag="#Westview"><span class="trend-rank">05</span><span class="trend-copy"><strong>#Westview</strong><small>Rumores da cidade</small></span><span class="trend-volume">11.9k</span></button>
+            <button id="seeAllTrends" class="panel-footer">VER RELATÓRIO COMPLETO <span>↗</span></button>
+          </section>
+
+          <section class="panel suggested-panel">
+            <div class="panel-heading"><div><span class="eyebrow">SUGESTÕES DO SISTEMA</span><h2>Personagens em destaque</h2></div></div>
+            <div id="suggestedUsers"><p class="modal-copy">Os personagens cadastrados aparecerão aqui conforme a rede crescer.</p></div>
+          </section>
+
+          <section class="vox-ad">
+            <div class="ad-top"><span>ANÚNCIO PATROCINADO</span><span class="ad-signal">VTK</span></div>
+            <div class="ad-logo">VOX<span>TEK</span></div>
+            <h3>Você não precisa<br>de privacidade.</h3>
+            <p>Precisa de uma tela melhor para acompanhar quem está falando de você.</p>
+            <button id="adButton">ENTRE NA TRANSMISSÃO ↗</button>
+            <div class="ad-disclaimer">A rede não se responsabiliza por consequências mágicas.</div>
+          </section>
+          <footer class="site-footer">Sobre · Regras da rede · Contratos · Privacidade (talvez)<br><span>© Sinistagram Network. Todos os feitiços reservados.</span></footer>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="modal" class="app-modal">
+    <div class="modal-head"><span class="eyebrow">SINISTAGRAM INTERFACE</span><button id="closeModal" class="modal-close" aria-label="Fechar">×</button></div>
+    <div id="modalContent"></div>
+  </dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
