@@ -1,16 +1,15 @@
-// Sinistagram — versão 1: login, cadastro, publicações e feed em tempo real.
+// Sinistagram — versão 3: login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, runTransaction, getDocs } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, runTransaction, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 let auth = null, db = null;
-let initError = "";
-let currentUser = null, myProfile = null, posts = [], signingUp = false, unsubscribeFeed = null;
+let currentUser = null, myProfile = null, posts = [], profiles = [], likes = [], signingUp = false, unsubscribeFeed = null;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
 
@@ -161,10 +160,15 @@ function renderPosts() {
   const search = $("#searchInput").value.trim().toLowerCase();
   let visible = [...posts];
   if (search) visible = visible.filter((p) => [p.text, p.authorName].join(" ").toLowerCase().includes(search));
-  $("#postFeed").innerHTML = visible.map((p) => `<article class="post">
-    <div class="post-head"><span class="avatar">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
-    <div class="post-author"><strong>${escapeHTML(p.authorName)}</strong><small>${escapeHTML(relativeTime(p.createdAt))}</small></div></div>
-    <p class="post-text">${formatText(p.text || "")}</p></article>`).join("");
+  $("#postFeed").innerHTML = visible.map((p) => {
+    const n = likes.filter((l) => l.postId === p.id).length;
+    const on = !!currentUser && likes.some((l) => l.postId === p.id && l.uid === currentUser.uid);
+    return `<article class="post" style="--h:${hue(p.authorName)}">
+    <button class="who" data-profile="${escapeHTML(p.authorUid)}"><span class="avatar" style="--h:${hue(p.authorName)}">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
+    <span class="post-author"><strong>${escapeHTML(p.authorName)}</strong><small>@${escapeHTML(makeKey(p.authorName || ""))} · ${escapeHTML(relativeTime(p.createdAt))}</small></span></button>
+    <p class="post-text">${formatText(p.text || "")}</p>
+    <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button></div></article>`;
+  }).join("");
   $("#emptyState").hidden = visible.length > 0;
   $("#feedHeading").textContent = search ? "Resultados da busca" : "Publicações recentes";
   if (!visible.length) {
@@ -196,12 +200,7 @@ async function publishPost() {
 }
 
 function showConfigNeeded() {
-  const motivo = !configReady
-    ? "O firebase-config.js carregou, mas ainda tem valores de exemplo (apiKey ou projectId)."
-    : initError
-      ? "O Firebase não iniciou. Erro: " + initError
-      : "O Firebase ainda não iniciou. Recarregue a página e tente de novo.";
-  showModal("Não foi possível conectar ao Firebase", motivo);
+  showModal("Configuração do Firebase necessária", "O arquivo firebase-config.js ainda está com os valores de exemplo ou o Firebase não carregou. Cole a configuração real do seu projeto nesse arquivo.");
 }
 
 /* ---------- sugestões reais (personagens cadastrados) ---------- */
@@ -211,9 +210,29 @@ async function renderSuggestions() {
   try {
     const snap = await getDocs(query(collection(db, "profiles"), limit(12)));
     const list = snap.docs.map((d) => d.data());
-    box.innerHTML = list.length ? list.map((p) => `<div class="suggested-user"><span class="avatar">${escapeHTML((p.characterName || "?").slice(0, 1).toUpperCase())}</span><strong>${escapeHTML(p.characterName)}</strong></div>`).join("") : '<p class="muted">Ninguém se cadastrou ainda.</p>';
+    profiles = list;
+    box.innerHTML = list.length ? list.map((p) => `<button class="suggested-user" data-profile="${escapeHTML(p.uid)}"><span class="avatar" style="--h:${hue(p.characterName)}">${escapeHTML((p.characterName || "?").slice(0, 1).toUpperCase())}</span><strong>${escapeHTML(p.characterName)}</strong></button>`).join("") : '<p class="muted">Ninguém se cadastrou ainda.</p>';
+    $("#stories").innerHTML = list.map((p) => `<button class="story" data-profile="${escapeHTML(p.uid)}"><span class="avatar xl" style="--h:${hue(p.characterName)}">${escapeHTML((p.characterName || "?").slice(0, 1).toUpperCase())}</span><small>${escapeHTML(p.characterName)}</small></button>`).join("");
+    $("#stories").hidden = !list.length;
   } catch (err) { console.error(err); }
 }
+
+/* ---------- v3: curtidas reais, cores por personagem, perfis ---------- */
+function hue(name) { let h = 0; for (const c of String(name || "")) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function startLikes() {
+  onSnapshot(query(collection(db, "likes"), limit(1000)), (snap) => { likes = snap.docs.map((d) => d.data()); renderPosts(); }, (err) => console.error(err));
+}
+async function toggleLike(postId) {
+  if (!currentUser || !myProfile) { openAuth("login"); return; }
+  const ref = doc(db, "likes", `${postId}_${currentUser.uid}`);
+  const liked = likes.some((l) => l.postId === postId && l.uid === currentUser.uid);
+  try { liked ? await deleteDoc(ref) : await setDoc(ref, { postId, uid: currentUser.uid, createdAt: serverTimestamp() }); }
+  catch (err) { console.error(err); toast(friendlyError(err)); }
+}
+document.addEventListener("click", (e) => {
+  const l = e.target.closest("[data-like]"); if (l) { toggleLike(l.dataset.like); return; }
+  const u = e.target.closest("[data-profile]"); if (u) openProfile(u.dataset.profile);
+});
 
 /* ---------- eventos (registrados primeiro, antes de qualquer coisa do Firebase) ---------- */
 function goCompose() {
@@ -223,7 +242,15 @@ function goCompose() {
 }
 function openMyProfile() {
   if (!myProfile) { openAuth("login"); return; }
-  showModal("Seu personagem", "Perfil vinculado à sua conta.", `<div class="profile-large"><span class="avatar">${escapeHTML(myProfile.characterName.slice(0, 1).toUpperCase())}</span><strong>${escapeHTML(myProfile.characterName)}</strong></div><div class="profile-stats"><div><strong>${posts.filter((p) => p.authorUid === currentUser.uid).length}</strong><small>Publicações</small></div></div>`);
+  openProfile(currentUser.uid);
+}
+function openProfile(uid) {
+  const p = profiles.find((x) => x.uid === uid) || (myProfile?.uid === uid ? myProfile : null) || { characterName: posts.find((x) => x.authorUid === uid)?.authorName || "Personagem" };
+  const mine = posts.filter((x) => x.authorUid === uid);
+  const got = likes.filter((l) => mine.some((x) => x.id === l.postId)).length;
+  const since = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString("pt-BR") : "";
+  const recent = mine.slice(0, 3).map((x) => `<p class="pcard-post">${formatText(x.text)}</p>`).join("");
+  showModal("Personagem", since ? `Na rede desde ${since}` : "Perfil público", `<div class="pcard" style="--h:${hue(p.characterName)}"><span class="avatar xl" style="--h:${hue(p.characterName)}">${escapeHTML(p.characterName.slice(0, 1).toUpperCase())}</span><h3>${escapeHTML(p.characterName)}</h3><p class="handle">@${escapeHTML(makeKey(p.characterName))}</p><div class="profile-stats"><div><strong>${mine.length}</strong><small>publicações</small></div><div><strong>${got}</strong><small>curtidas</small></div></div></div>${recent}`);
 }
 $("#authButton").addEventListener("click", async () => {
   if (currentUser) {
@@ -259,6 +286,7 @@ if (!configReady) {
     auth = getAuth(app);
     db = getFirestore(app);
     startFeed();
+    startLikes();
     renderSuggestions();
     onAuthStateChanged(auth, async (user) => {
       currentUser = user;
@@ -270,7 +298,6 @@ if (!configReady) {
       renderPosts();
     });
   } catch (err) {
-    initError = (err && (err.code || err.message)) || String(err);
     console.error("Erro ao iniciar o Firebase:", err);
     toast("Erro ao iniciar o Firebase. Veja o console.");
   }
