@@ -9,6 +9,7 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 let auth = null, db = null;
+let initError = "";
 let currentUser = null, myProfile = null, posts = [], signingUp = false, unsubscribeFeed = null;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
@@ -195,7 +196,12 @@ async function publishPost() {
 }
 
 function showConfigNeeded() {
-  showModal("Configuração do Firebase necessária", "O arquivo firebase-config.js ainda está com os valores de exemplo ou o Firebase não carregou. Cole a configuração real do seu projeto nesse arquivo.");
+  const motivo = !configReady
+    ? "O firebase-config.js carregou, mas ainda tem valores de exemplo (apiKey ou projectId)."
+    : initError
+      ? "O Firebase não iniciou. Erro: " + initError
+      : "O Firebase ainda não iniciou. Recarregue a página e tente de novo.";
+  showModal("Não foi possível conectar ao Firebase", motivo);
 }
 
 /* ---------- sugestões reais (personagens cadastrados) ---------- */
@@ -264,6 +270,7 @@ if (!configReady) {
       renderPosts();
     });
   } catch (err) {
+    initError = (err && (err.code || err.message)) || String(err);
     console.error("Erro ao iniciar o Firebase:", err);
     toast("Erro ao iniciar o Firebase. Veja o console.");
   }
