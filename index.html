@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0f0a1a">
   <title>Sinistagram</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
     <aside class="sidebar">
       <a class="brand" href="#" aria-label="Sinistagram início">
         <span class="brand-mark">S</span>
-        <span class="brand-name">Sinistagram<small>Metaverse</small></span>
+        <span class="brand-name">Sinistagram<small>Metaverse · v3</small></span>
       </a>
       <nav class="main-nav" aria-label="Navegação principal">
         <button class="nav-item active" data-view="feed"><span class="nav-icon">⌂</span> Início</button>
@@ -34,6 +35,7 @@
 
       <div class="content">
         <section class="feed-column">
+          <div class="stories" id="stories" hidden aria-label="Personagens na rede"></div>
           <section class="composer" id="composer">
             <div class="composer-head"><span class="avatar" id="composerAvatar">?</span>
               <textarea id="postText" maxlength="500" rows="3" placeholder="Entre para publicar como seu personagem..." disabled></textarea>
