@@ -1,4 +1,4 @@
-// Sinistagram — versão 3: login, cadastro, publicações e feed em tempo real.
+// COVEN — versão 4: login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
@@ -69,6 +69,9 @@ function setAuthUI() {
   $("#sidebarHandle").textContent = logged ? "Conectado" : "Entre para participar";
   $("#sidebarAvatar").textContent = initial;
   $("#composerAvatar").textContent = initial;
+  const hh = hue(myProfile?.characterName);
+  $("#sidebarAvatar").style.setProperty("--h", hh);
+  $("#composerAvatar").style.setProperty("--h", hh);
 }
 
 /* ---------- login / cadastro ---------- */
@@ -218,7 +221,8 @@ async function renderSuggestions() {
 }
 
 /* ---------- v3: curtidas reais, cores por personagem, perfis ---------- */
-function hue(name) { let h = 0; for (const c of String(name || "")) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+const HUES = [340, 350, 8, 20, 320, 300, 0, 28];
+function hue(name) { let h = 0; for (const c of String(name || "")) h = (h * 31 + c.charCodeAt(0)) % 997; return HUES[h % HUES.length]; }
 function startLikes() {
   onSnapshot(query(collection(db, "likes"), limit(1000)), (snap) => { likes = snap.docs.map((d) => d.data()); renderPosts(); }, (err) => console.error(err));
 }
@@ -254,7 +258,7 @@ function openProfile(uid) {
 }
 $("#authButton").addEventListener("click", async () => {
   if (currentUser) {
-    if (confirm("Deseja sair do Sinistagram?")) {
+    if (confirm("Deseja sair do COVEN?")) {
       try { await signOut(auth); toast("Você saiu."); } catch (err) { toast(friendlyError(err)); }
     }
   } else openAuth("login");
