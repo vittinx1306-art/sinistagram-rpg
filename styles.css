@@ -194,3 +194,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .pcard-bio.muted{font-size:13px}
 .pcard-edit{margin:18px auto 0;display:block}
 .pcard .profile-stats{gap:28px}
+
+/* v10: respostas aos comentários */
+.comment-thread{display:grid;gap:8px}
+.replies{margin-left:38px;padding-left:12px;border-left:1px solid var(--edge);display:grid;gap:10px}
+.comment.reply .avatar.sm{width:26px;height:26px;font-size:12px}
+.reply-to{display:block;margin-top:1px;font-size:12px;color:var(--muted)}
+.reply-btn{margin-top:2px;min-height:34px;padding:4px 2px;border:0;background:none;color:var(--taupe);font-size:13px;font-weight:600}
+.reply-form .comment-form{flex-wrap:wrap}
+.reply-form .comment-input{flex:1 1 100%}
+.reply-form .reply-cancel{order:1;margin-right:auto;min-height:42px;padding:0 6px;border:0;background:none;color:var(--muted);font-size:14px}
+.reply-form .comment-send{order:2}
+@media (max-width:480px){.replies{margin-left:22px;padding-left:10px}}
