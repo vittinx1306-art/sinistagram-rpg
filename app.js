@@ -1,8 +1,8 @@
-// COVEN — versão 6 (vários personagens por conta): login, cadastro, publicações e feed em tempo real.
+// COVEN — versão 7 (excluir publicação e recuperar senha): login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, runTransaction, getDocs, setDoc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, runTransaction, getDocs, setDoc, deleteDoc, where, writeBatch } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const $ = (s) => document.querySelector(s);
@@ -92,12 +92,24 @@ function openAuth(mode = "login") {
     <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
     <label>Senha<input name="password" type="password" minlength="6" autocomplete="${isSignup ? "new-password" : "current-password"}" required></label>
     <button class="btn-primary auth-submit" type="submit">${isSignup ? "Criar conta" : "Entrar"}</button>
+    ${isSignup ? "" : '<p class="auth-switch"><button type="button" id="forgotPass">Esqueci minha senha</button></p>'}
     <p class="auth-switch">${isSignup ? "Já tem uma conta?" : "Ainda não tem conta?"} <button type="button" id="switchAuth">${isSignup ? "Entrar" : "Criar conta"}</button></p>
     ${isSignup ? '<p class="auth-note">Você poderá criar até 10 personagens na mesma conta. Seu e-mail não aparece para ninguém, só o nome do personagem.</p>' : ""}
   </form>`;
   showModal(isSignup ? "Criar conta" : "Entrar", isSignup ? "Escolha o nome do seu personagem, um e-mail e uma senha." : "Use o e-mail e a senha da sua conta.", form);
   $("#switchAuth").addEventListener("click", () => openAuth(isSignup ? "login" : "signup"));
   $("#authForm").addEventListener("submit", (e) => handleAuthSubmit(e, isSignup));
+  const forgot = $("#forgotPass");
+  if (forgot) forgot.addEventListener("click", async () => {
+    const email = String($("#authForm").elements.email.value || "").trim();
+    if (!email) { toast("Digite seu e-mail no campo acima e toque de novo."); return; }
+    forgot.disabled = true;
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast("Se houver uma conta com esse e-mail, enviamos o link para criar uma nova senha. Olhe também o spam.");
+    } catch (err) { console.error(err); toast(friendlyError(err)); }
+    finally { forgot.disabled = false; }
+  });
 }
 
 async function handleAuthSubmit(e, isSignup) {
@@ -214,7 +226,7 @@ function renderPosts() {
     <button class="who" data-profile="${escapeHTML(postCharId(p))}" data-pname="${escapeHTML(p.authorName)}"><span class="avatar" style="--h:${hue(p.authorName)}">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
     <span class="post-author"><strong>${escapeHTML(p.authorName)}</strong><small>@${escapeHTML(makeKey(p.authorName || ""))} · ${escapeHTML(relativeTime(p.createdAt))}</small></span></button>
     <p class="post-text">${formatText(p.text || "")}</p>
-    <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button><button class="like cbtn${open ? " on" : ""}" data-comments="${escapeHTML(p.id)}" aria-expanded="${open}" aria-label="Comentários"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg> ${cn}</button></div>${open ? commentsHTML(p) : ""}</article>`;
+    <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button><button class="like cbtn${open ? " on" : ""}" data-comments="${escapeHTML(p.id)}" aria-expanded="${open}" aria-label="Comentários"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg> ${cn}</button>${currentUser && currentUser.uid === p.authorUid ? `<button class="post-del" data-delpost="${escapeHTML(p.id)}" aria-label="Excluir publicação">Excluir</button>` : ""}</div>${open ? commentsHTML(p) : ""}</article>`;
   }).join("");
   if (keep) {
     const el = document.querySelector(`.comment-input[data-cinput="${CSS.escape(keep.id)}"]`);
@@ -355,6 +367,25 @@ async function sendComment(postId) {
   } catch (err) { console.error(err); toast(friendlyError(err)); }
   finally { sendingComment = false; }
 }
+async function deletePost(id) {
+  const p = posts.find((x) => x.id === id);
+  if (!p || !currentUser || p.authorUid !== currentUser.uid) return;
+  if (!confirm("Excluir esta publicação? Os comentários e as curtidas dela também serão apagados.")) return;
+  const refs = [
+    ...comments.filter((c) => c.postId === id).map((c) => doc(db, "comments", c.id)),
+    ...likes.filter((l) => l.postId === id).map((l) => doc(db, "likes", `${l.postId}_${l.uid}`)),
+  ];
+  try {
+    for (let i = 0; i < refs.length; i += 400) {
+      const b = writeBatch(db);
+      refs.slice(i, i + 400).forEach((r) => b.delete(r));
+      await b.commit();
+    }
+    await deleteDoc(doc(db, "posts", id));
+    openComments.delete(id);
+    toast("Publicação excluída.");
+  } catch (err) { console.error(err); toast(friendlyError(err)); }
+}
 async function removeComment(id) {
   if (!confirm("Apagar este comentário?")) return;
   try { await deleteDoc(doc(db, "comments", id)); }
@@ -375,6 +406,7 @@ document.addEventListener("click", (e) => {
   const c = e.target.closest("[data-comments]"); if (c) { const id = c.dataset.comments; openComments.has(id) ? openComments.delete(id) : openComments.add(id); renderPosts(); return; }
   const s = e.target.closest("[data-csend]"); if (s) { sendComment(s.dataset.csend); return; }
   const d = e.target.closest("[data-cdel]"); if (d) { removeComment(d.dataset.cdel); return; }
+  const dp = e.target.closest("[data-delpost]"); if (dp) { deletePost(dp.dataset.delpost); return; }
   if (e.target.closest("[data-cauth]")) { openAuth("login"); return; }
   const us = e.target.closest("[data-use]"); if (us) { setActive(us.dataset.use); openManage(); return; }
   const dc = e.target.closest("[data-delchar]"); if (dc) { deleteCharacter(dc.dataset.delchar); return; }
