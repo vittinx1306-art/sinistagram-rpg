@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#efe6ea">
   <title>COVEN</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
   <div class="app">
@@ -37,6 +37,7 @@
         <section class="feed-column">
           <div class="stories" id="stories" hidden aria-label="Personagens na rede"></div>
           <section class="composer" id="composer">
+            <div class="as-row" id="asRow" hidden><span>Postando como</span><select id="charSelect" class="char-select" aria-label="Personagem ativo"></select></div>
             <div class="composer-head"><span class="avatar" id="composerAvatar">?</span>
               <textarea id="postText" maxlength="500" rows="3" placeholder="Entre para publicar como seu personagem..." disabled></textarea>
             </div>
@@ -70,6 +71,6 @@
     <div class="modal-head"><span class="modal-label">COVEN</span><button id="closeModal" class="modal-close" aria-label="Fechar">×</button></div>
     <div id="modalContent"></div>
   </dialog>
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>
