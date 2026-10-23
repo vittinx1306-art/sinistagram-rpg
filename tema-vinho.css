@@ -1,0 +1,49 @@
+/* COVEN — tema vinho: bordô, vinho e preto, com detalhes dourados.
+   Este arquivo só sobrescreve cores. Para voltar ao visual claro (pérola), o botão ◐ do topo
+   desativa este arquivo; para remover de vez, apague o <link id="themeVinho"> do index.html. */
+:root{--bg:#0c0608;--ink:#f0e4dc;--muted:#a8929a;--mauve:#7b3342;--taupe:#c9a96a;--rose:#e0697c;--plum:#f1e3c8;--glass:rgba(38,13,21,.72);--edge:rgba(201,169,106,.24);--line:rgba(201,169,106,.17);--shadow:0 16px 44px -20px rgba(0,0,0,.9);--grad:linear-gradient(135deg,#9b2340,#4d0e1d);color-scheme:dark}
+body{background:radial-gradient(70vw 50vh at 88% -5%,rgba(125,22,45,.38),transparent 70%),radial-gradient(60vw 60vh at -5% 55%,rgba(85,12,30,.5),transparent 70%),linear-gradient(180deg,#130709,#090305);background-attachment:fixed}
+::placeholder{color:#7f6b73!important}
+select option{background:#1a0a10;color:var(--ink)}
+
+/* tipografia */
+.brand-name,.mobile-brand,.modal-label{font-family:Cinzel,"Cormorant Garamond",serif}
+.brand-name{font-size:22px}
+.feed-title{font-family:Cinzel,"Cormorant Garamond",serif;font-size:19px;letter-spacing:.08em}
+.feed-title::after{content:"";display:block;height:1px;margin-top:8px;background:linear-gradient(90deg,var(--taupe),transparent 70%);opacity:.5}
+.panel h2{font-family:Cinzel,"Cormorant Garamond",serif;font-size:16px;letter-spacing:.08em}
+.modal-label{font-size:15px;letter-spacing:.2em}
+.modal-title{font-size:26px}
+
+/* navegação e topo */
+.brand-mark{color:#f6e6c8;border:1px solid rgba(201,169,106,.45);box-shadow:inset 0 1px 0 rgba(255,214,150,.3),var(--shadow)}
+.nav-item:hover{background:rgba(255,255,255,.06);color:var(--ink)}
+.nav-item.active{background:rgba(155,35,64,.3);color:var(--plum);box-shadow:inset 0 0 0 1px var(--edge)}
+.user-mini{background:rgba(255,255,255,.04)}
+.search-box{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--taupe)}
+.bottom-nav .nav-item.active{background:none;box-shadow:none}
+
+/* botões */
+.btn-primary{color:#f8ecd9;border:1px solid rgba(201,169,106,.4);box-shadow:inset 0 1px 0 rgba(255,214,150,.22),0 8px 20px -8px rgba(155,35,64,.75)}
+.like,.btn-photo,.char-use,.char-select,.theme-btn{background:rgba(255,255,255,.05);color:var(--taupe)}
+.char-select{color:var(--plum)}
+.like.on{background:rgba(155,35,64,.3);color:#ff9fae;border-color:#c0405a}
+.post-del{color:var(--muted)}
+
+/* cartões e vidro */
+.post{border-left:2px solid hsl(var(--h) 50% 38%)}
+.comment-body,.pcard-post,.char-row{background:rgba(255,255,255,.04)}
+.pcard{background:radial-gradient(circle at 50% 0,hsl(var(--h) 55% 22%),transparent 75%),rgba(255,255,255,.03)}
+.pcard-bio{color:var(--ink);opacity:.9}
+
+/* avatares: cor do personagem, mais ricas no escuro */
+.avatar{color:#f6e6c8;background:linear-gradient(145deg,hsl(var(--h) 52% 40%),hsl(calc(var(--h) + 10) 58% 20%));box-shadow:0 0 0 2px #14090d,0 0 0 3px hsl(var(--h) 45% 60%),0 6px 14px -6px rgba(0,0,0,.85)}
+.avatar.sm{box-shadow:0 0 0 2px #14090d,0 0 0 3px hsl(var(--h) 45% 60%)}
+
+/* campos de texto */
+.auth-form input,.char-form input,.comment-input,.edit-field textarea{background:rgba(255,255,255,.06);color:var(--ink);border-color:var(--line)}
+
+/* modal e aviso */
+.app-modal{background:rgba(24,8,14,.97);color:var(--ink);box-shadow:0 30px 80px -20px #000}
+.app-modal::backdrop{background:rgba(0,0,0,.7)}
+.toast{background:#2a0e17;color:var(--ink);border:1px solid var(--edge)}

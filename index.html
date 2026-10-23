@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0c0608">
+  <title>COVEN</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=9">
+  <link id="themeVinho" rel="stylesheet" href="tema-vinho.css?v=9">
+  <script>try{if(localStorage.getItem("coven_theme")==="perola")document.getElementById("themeVinho").disabled=true}catch(e){}</script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="COVEN início">
+        <span class="brand-mark">C</span>
+        <span class="brand-name">COVEN<small>Rede de personagens</small></span>
+      </a>
+      <nav class="main-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view="feed"><span class="nav-icon">⌂</span> Início</button>
+        <button class="nav-item" data-view="compose"><span class="nav-icon">＋</span> Publicar</button>
+        <button class="nav-item" data-view="profile"><span class="nav-icon">◉</span> Meu perfil</button>
+      </nav>
+      <button class="user-mini" id="openProfile">
+        <span class="avatar" id="sidebarAvatar">?</span>
+        <span class="user-mini-info"><strong id="sidebarName">Visitante</strong><small id="sidebarHandle">Entre para participar</small></span>
+      </button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark">C</span><strong>COVEN</strong></div>
+        <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar publicações ou personagens" aria-label="Buscar"></label>
+        <button class="theme-btn" id="themeBtn" aria-label="Alternar tema" title="Alternar tema">◐</button>
+        <button class="btn-primary" id="authButton">Entrar</button>
+      </header>
+
+      <div class="content">
+        <section class="feed-column">
+          <div class="stories" id="stories" hidden aria-label="Personagens na rede"></div>
+          <section class="composer" id="composer">
+            <div class="as-row" id="asRow" hidden><span>Postando como</span><select id="charSelect" class="char-select" aria-label="Personagem ativo"></select></div>
+            <div class="composer-head"><span class="avatar" id="composerAvatar">?</span>
+              <textarea id="postText" maxlength="500" rows="3" placeholder="Entre para publicar como seu personagem..." disabled></textarea>
+            </div>
+            <div class="photo-preview" id="photoPreview" hidden><img alt="Prévia da foto"><button type="button" id="photoRemove" aria-label="Remover foto">×</button></div>
+            <div class="composer-foot"><small class="char-count"><span id="charCount">0</span>/500</small>
+              <label class="btn-photo" id="photoLabel" for="photoInput" aria-disabled="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="3.2"/></svg> Foto</label>
+              <input type="file" id="photoInput" accept="image/*" hidden disabled>
+              <button id="publishButton" class="btn-primary" disabled>Publicar</button></div>
+          </section>
+
+          <h2 class="feed-title" id="feedHeading">Publicações recentes</h2>
+          <div id="postFeed" class="post-feed" aria-live="polite"></div>
+          <div id="emptyState" class="empty-state" hidden><h3>Nada por aqui ainda</h3><p>Seja a primeira pessoa a publicar.</p></div>
+        </section>
+
+        <aside class="right-column">
+          <section class="panel">
+            <h2>Personagens na rede</h2>
+            <div id="suggestedUsers"><p class="muted">Ninguém se cadastrou ainda.</p></div>
+          </section>
+          <footer class="site-footer">© COVEN</footer>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Navegação">
+    <button class="nav-item active" data-view="feed"><span class="nav-icon">⌂</span><small>Início</small></button>
+    <button class="nav-item" data-view="compose"><span class="nav-icon">＋</span><small>Publicar</small></button>
+    <button class="nav-item" data-view="profile"><span class="nav-icon">◉</span><small>Perfil</small></button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="modal" class="app-modal">
+    <div class="modal-head"><span class="modal-label">COVEN</span><button id="closeModal" class="modal-close" aria-label="Fechar">×</button></div>
+    <div id="modalContent"></div>
+  </dialog>
+  <script type="module" src="app.js?v=9"></script>
+</body>
+</html>

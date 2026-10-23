@@ -1,0 +1,90 @@
+COVEN — versão 9 (perfil com foto e bio, tema vinho)
+================================================================
+
+NOVO NA V9:
+- Perfil do personagem: foto de perfil (recortada em quadrado e reduzida no aparelho) e bio de até 160 caracteres.
+  Em Perfil > Meus personagens, toque em "Editar" (ou abra seu perfil e toque em "Editar perfil"). O nome não muda.
+- A foto aparece nas publicações, comentários, faixa do topo, lateral e perfil. Trocar a foto atualiza também as publicações antigas.
+- Perfil público com foto, bio e três contadores (publicações, comentários, curtidas).
+- Tema novo: bordô, vinho e preto com detalhes dourados (tema-vinho.css). O botão ◐ no topo alterna para o visual claro antigo (pérola) e a escolha fica salva no aparelho.
+- ARQUIVOS NOVOS/ALTERADOS: index.html, styles.css, app.js, firestore.rules e o NOVO tema-vinho.css (suba os 4 arquivos do site + as regras).
+- ORDEM: publique PRIMEIRO o firestore.rules e DEPOIS suba os arquivos no GitHub. Sem as regras novas, salvar foto/bio é recusado.
+- Para voltar ao visual antigo de vez: apague a linha <link id="themeVinho" ...> do index.html.
+
+NA V8: fotos nas publicações.
+- No campo de publicar há o botão "Foto". A foto é reduzida no próprio aparelho (JPEG, lado maior de até ~960 px) e guardada dentro da publicação no Firestore. Sem serviço extra, sem cartão, sem Storage.
+- Dá para publicar só a foto, sem texto. Toque na foto no feed para ver maior. Excluir a publicação apaga a foto junto.
+- Só foto (sem vídeo). Cada foto fica em torno de 50 a 100 KB.
+- ORDEM: publique PRIMEIRO o firestore.rules (passo 2) e DEPOIS suba index.html, styles.css e app.js (passo 1). Os 4 arquivos mudaram.
+- Se publicar com foto der "O Firebase recusou a operação", as regras novas não foram publicadas (ou foram coladas incompletas).
+
+NA V7:
+- Botão "Excluir" nas suas publicações. Ao excluir, os comentários e as curtidas da publicação também são apagados.
+- "Esqueci minha senha" na tela de entrar: digite o e-mail no campo e toque no link; o Firebase envia o e-mail para criar nova senha (olhe o spam).
+  Dica: no console do Firebase > Authentication > Modelos (Templates) > Redefinição de senha, dá para trocar o idioma para português.
+- ORDEM: publique PRIMEIRO o firestore.rules (passo 2) e DEPOIS suba index.html, styles.css e app.js (passo 1). Mudaram: app.js, styles.css, index.html (só o ?v=7) e firestore.rules.
+
+NA V6: até 10 personagens por conta.
+- Toque em "Perfil" (ou no seu nome na lateral) > "Meus personagens": veja a lista, toque em "Usar" para trocar o personagem ativo, "×" para excluir, ou crie um novo (n de 10).
+- Quando houver mais de um personagem, aparece "Postando como" acima do campo de publicar e "Comentando como" nos comentários.
+- Contas antigas: o personagem que você já tinha vira o personagem 1, sem perder nada. Publicações antigas continuam no feed.
+- O limite de 10 é garantido pelas regras do Firestore (vagas 0 a 9), não só pela tela.
+- Ao excluir um personagem, as publicações dele continuam no feed e o nome continua reservado para a sua conta. Não dá para excluir o último personagem.
+- ORDEM IMPORTANTE: publique PRIMEIRO o firestore.rules (passo 2) e DEPOIS suba index.html, styles.css e app.js (passo 1). Os 3 arquivos mudaram.
+- Os links no index.html agora têm ?v=6 (evita o cache do navegador): nas próximas versões, mude o número.
+
+NA V5: comentários. Toque no balão 💬 de uma publicação para abrir/fechar os comentários, escreva (até 300 caracteres) e envie; o autor pode apagar o próprio com ×. Tempo real, como o feed.
+- ATENÇÃO: republique o firestore.rules (passo 2), senão o comentário será recusado e a lista não carrega.
+- Arquivos que mudaram: app.js, styles.css, firestore.rules (index.html continua igual).
+
+NA V4: nome COVEN, visual claro de vidro perolado/malva, paleta fixa de 8 tons (cada personagem mantém a mesma cor em todo o site). Regras do Firestore iguais às da v3.
+
+NA V3 (continua valendo)
+- Visual de vidro com brilho neon; cada personagem ganha uma cor própria.
+- Faixa de personagens no topo do feed (toque para ver o perfil).
+- Curtidas de verdade (coração nas publicações) e perfil público com contadores.
+- ATENÇÃO: republique o firestore.rules (passo 2), senão a curtida será recusada.
+- Login, cadastro, feed e publicação continuam iguais.
+
+O QUE VEM NESTE ZIP
+- index.html, styles.css, app.js  -> substituem os 3 arquivos antigos no GitHub
+- firestore.rules                 -> colar no console do Firebase (passo 2)
+- firebase-config.js NÃO está aqui de propósito: o seu arquivo no GitHub já tem
+  as chaves reais do projeto. NÃO apague nem substitua. Se ele ainda estiver com
+  "COLE_SUA_API_KEY", preencha em: Firebase > Configurações do projeto > Seus apps > Web.
+
+PASSO 1 — Subir os arquivos no GitHub (pelo navegador do tablet)
+1. Abra o repositório sinistagram-rpg > toque no arquivo > ícone de lápis (editar).
+2. Apague o conteúdo, cole o novo e toque em "Commit changes". Repita para
+   index.html, styles.css e app.js.
+   (Dica: ou "Add file > Upload files" e envie os 3 arquivos descompactados.)
+3. Espere ~1 minuto e abra o site. Se parecer igual ao antigo, recarregue
+   forçado / abra em aba anônima (o navegador guarda cache).
+
+PASSO 2 — Publicar as regras do Firestore
+1. Console do Firebase > projeto sinistagram-rpg > Firestore Database > aba "Regras".
+2. Apague tudo, cole o conteúdo de firestore.rules, toque em "Publicar".
+
+PASSO 3 — Conferir o login
+- Authentication > Método de login > "E-mail/senha" precisa estar ATIVADO.
+- Authentication > Configurações > Domínios autorizados: precisa ter
+  vittinx1306-art.github.io
+
+PASSO 4 — Testar
+1. ENTRAR > "Criar conta" > nome do personagem, e-mail, senha (mín. 6).
+2. Escreva algo e toque em TRANSMITIR. O texto aparece no feed na hora.
+3. Abra o site em outro aparelho/aba: o post aparece em tempo real.
+
+SE ALGO FALHAR
+- Toast "O Firebase recusou a operação": as regras do passo 2 não foram publicadas.
+- Toast "Login por e-mail/senha não está ativado": passo 3.
+- Erro de domínio (auth/unauthorized-domain): adicione o domínio no passo 3.
+- Feed não carrega e o toast fala em regras: passo 2.
+- Se nada abre: mande uma foto do console de erros ou diga o que aparece.
+
+O QUE FICOU DE FORA (ainda não existe, e foi removido da tela para não enganar)
+Seguidores, stories de verdade, mensagens, imagens, notificações.
+Nada disso aparece na tela até existir de verdade.
+
+SEM SERVIÇOS PAGOS
+Só usa Authentication e Firestore (plano gratuito). Não usa Storage.

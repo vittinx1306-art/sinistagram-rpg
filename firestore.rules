@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function owns(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Autoria de posts/comentários: o personagem escolhido precisa ser da conta (v6).
+    // Também aceita o formato antigo (sem characterId) para não quebrar páginas em cache.
+    function charOk(data) {
+      return data.keys().hasAny(['characterId'])
+        && data.characterId is string
+        && get(/databases/$(database)/documents/characters/$(data.characterId)).data.ownerUid == request.auth.uid
+        && get(/databases/$(database)/documents/characters/$(data.characterId)).data.name == data.authorName;
+    }
+    function legacyOk(data) {
+      return !data.keys().hasAny(['characterId'])
+        && data.authorName == get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.characterName;
+    }
+    function authorOk(data) {
+      return data.authorUid == request.auth.uid
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && (charOk(data) || legacyOk(data));
+    }
+
+    // Perfis: todos leem; só o dono cria (junto com a reserva do nome do personagem).
+    match /profiles/{uid} {
+      allow read: if true;
+      allow create: if owns(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.characterName is string
+        && request.resource.data.characterName.size() >= 2
+        && request.resource.data.characterName.size() <= 40
+        && request.resource.data.characterKey is string
+        && getAfter(/databases/$(database)/documents/characterClaims/$(request.resource.data.characterKey)).data.uid == uid;
+      allow update, delete: if false;
+    }
+
+    // Reserva de nome de personagem (impede dois cadastros com o mesmo nome).
+    match /characterClaims/{characterKey} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && !exists(/databases/$(database)/documents/characterClaims/$(characterKey));
+      allow update, delete: if false;
+    }
+
+    // Publicações: todos leem; só quem tem perfil publica, com o próprio nome de personagem. Foto opcional (JPEG pequeno em texto).
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && authorOk(request.resource.data)
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 500
+        && (request.resource.data.text.size() > 0 || request.resource.data.keys().hasAny(['image']))
+        && (!request.resource.data.keys().hasAny(['image'])
+            || (request.resource.data.image is string
+                && request.resource.data.image.size() <= 140000
+                && request.resource.data.image.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]*')))
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if owns(resource.data.authorUid);
+    }
+
+    // Curtidas: todos leem; cada pessoa cria/remove só a própria (id = postId_uid).
+    match /likes/{likeId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && likeId == request.resource.data.postId + '_' + request.auth.uid
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
+      allow update: if false;
+      // O dono da curtida ou o dono da publicação (ao excluí-la) pode apagar.
+      allow delete: if owns(resource.data.uid)
+        || (exists(/databases/$(database)/documents/posts/$(resource.data.postId))
+            && owns(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorUid));
+    }
+
+    // Comentários: todos leem; só quem tem perfil comenta, com o próprio nome de personagem, em post existente.
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && authorOk(request.resource.data)
+        && request.resource.data.postId is string
+        && exists(/databases/$(database)/documents/posts/$(request.resource.data.postId))
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 300
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      // O autor do comentário ou o dono da publicação (ao excluí-la) pode apagar.
+      allow delete: if owns(resource.data.authorUid)
+        || (exists(/databases/$(database)/documents/posts/$(resource.data.postId))
+            && owns(get(/databases/$(database)/documents/posts/$(resource.data.postId)).data.authorUid));
+    }
+
+    // Personagens (v6): até 10 por conta. O id é uid_vaga (vaga 0 a 9), então o 11º é impossível,
+    // mesmo com criações simultâneas. O nome precisa estar reservado para a própria conta.
+    // Excluir libera a vaga; a reserva do nome continua com o dono.
+    match /characters/{charId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && charId.matches(request.auth.uid + '_[0-9]')
+        && request.resource.data.slot is int
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.key is string
+        && getAfter(/databases/$(database)/documents/characterClaims/$(request.resource.data.key)).data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/characterClaims/$(request.resource.data.key)).data.characterName == request.resource.data.name;
+      // Editar perfil: só o dono, e só foto (avatar) e bio. Nome, vaga e dono nunca mudam.
+      allow update: if owns(resource.data.ownerUid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['avatar', 'bio'])
+        && (!request.resource.data.keys().hasAny(['bio'])
+            || (request.resource.data.bio is string && request.resource.data.bio.size() <= 160))
+        && (!request.resource.data.keys().hasAny(['avatar'])
+            || (request.resource.data.avatar is string
+                && request.resource.data.avatar.size() <= 30000
+                && request.resource.data.avatar.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]*')));
+      allow delete: if owns(resource.data.ownerUid);
+    }
+  }
+}
