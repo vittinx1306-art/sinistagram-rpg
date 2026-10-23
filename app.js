@@ -1,4 +1,4 @@
-// COVEN — versão 4: login, cadastro, publicações e feed em tempo real.
+// COVEN — versão 5 (comentários): login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
@@ -9,7 +9,9 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 let auth = null, db = null;
-let currentUser = null, myProfile = null, posts = [], profiles = [], likes = [], signingUp = false, unsubscribeFeed = null;
+let currentUser = null, myProfile = null, posts = [], profiles = [], likes = [], comments = [], signingUp = false, unsubscribeFeed = null;
+const openComments = new Set(), drafts = {};
+let sendingComment = false;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
 
@@ -159,19 +161,40 @@ function startFeed() {
   });
 }
 
+function tsMillis(ts) { return ts?.toMillis ? ts.toMillis() : Date.now(); }
+function commentsHTML(p) {
+  const list = comments.filter((c) => c.postId === p.id).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
+  const items = list.length ? list.map((c) => `<div class="comment" style="--h:${hue(c.authorName)}">
+      <button class="who" data-profile="${escapeHTML(c.authorUid)}" aria-label="Ver perfil"><span class="avatar sm" style="--h:${hue(c.authorName)}">${escapeHTML((c.authorName || "?").slice(0, 1).toUpperCase())}</span></button>
+      <div class="comment-body"><div class="comment-head"><strong>${escapeHTML(c.authorName)}</strong><small>${escapeHTML(relativeTime(c.createdAt))}</small>${currentUser && currentUser.uid === c.authorUid ? `<button class="comment-del" data-cdel="${escapeHTML(c.id)}" aria-label="Apagar comentário">×</button>` : ""}</div>
+      <p>${formatText(c.text || "")}</p></div></div>`).join("") : '<p class="muted comment-empty">Nenhum comentário ainda.</p>';
+  const form = currentUser && myProfile
+    ? `<div class="comment-form"><input class="comment-input" data-cinput="${escapeHTML(p.id)}" maxlength="300" autocomplete="off" placeholder="Comentar como ${escapeHTML(myProfile.characterName)}..." value="${escapeHTML(drafts[p.id] || "")}"><button class="btn-primary comment-send" data-csend="${escapeHTML(p.id)}">Enviar</button></div>`
+    : `<button class="comment-login" data-cauth>Entre para comentar</button>`;
+  return `<div class="comments">${items}${form}</div>`;
+}
+
 function renderPosts() {
+  const ae = document.activeElement;
+  const keep = ae && ae.matches && ae.matches(".comment-input") ? { id: ae.dataset.cinput, s: ae.selectionStart, e: ae.selectionEnd } : null;
   const search = $("#searchInput").value.trim().toLowerCase();
   let visible = [...posts];
   if (search) visible = visible.filter((p) => [p.text, p.authorName].join(" ").toLowerCase().includes(search));
   $("#postFeed").innerHTML = visible.map((p) => {
     const n = likes.filter((l) => l.postId === p.id).length;
     const on = !!currentUser && likes.some((l) => l.postId === p.id && l.uid === currentUser.uid);
+    const cn = comments.filter((c) => c.postId === p.id).length;
+    const open = openComments.has(p.id);
     return `<article class="post" style="--h:${hue(p.authorName)}">
     <button class="who" data-profile="${escapeHTML(p.authorUid)}"><span class="avatar" style="--h:${hue(p.authorName)}">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
     <span class="post-author"><strong>${escapeHTML(p.authorName)}</strong><small>@${escapeHTML(makeKey(p.authorName || ""))} · ${escapeHTML(relativeTime(p.createdAt))}</small></span></button>
     <p class="post-text">${formatText(p.text || "")}</p>
-    <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button></div></article>`;
+    <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button><button class="like cbtn${open ? " on" : ""}" data-comments="${escapeHTML(p.id)}" aria-expanded="${open}" aria-label="Comentários"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg> ${cn}</button></div>${open ? commentsHTML(p) : ""}</article>`;
   }).join("");
+  if (keep) {
+    const el = document.querySelector(`.comment-input[data-cinput="${CSS.escape(keep.id)}"]`);
+    if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.s, keep.e); } catch (_) {} }
+  }
   $("#emptyState").hidden = visible.length > 0;
   $("#feedHeading").textContent = search ? "Resultados da busca" : "Publicações recentes";
   if (!visible.length) {
@@ -226,6 +249,28 @@ function hue(name) { let h = 0; for (const c of String(name || "")) h = (h * 31 
 function startLikes() {
   onSnapshot(query(collection(db, "likes"), limit(1000)), (snap) => { likes = snap.docs.map((d) => d.data()); renderPosts(); }, (err) => console.error(err));
 }
+function startComments() {
+  onSnapshot(query(collection(db, "comments"), orderBy("createdAt", "desc"), limit(1000)), (snap) => { comments = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderPosts(); }, (err) => { console.error(err); toast("Não foi possível carregar os comentários. Publique as regras novas do Firestore."); });
+}
+async function sendComment(postId) {
+  if (!currentUser || !myProfile) { openAuth("login"); return; }
+  if (sendingComment) return;
+  const input = document.querySelector(`.comment-input[data-cinput="${CSS.escape(postId)}"]`);
+  const text = (input ? input.value : drafts[postId] || "").trim();
+  if (!text) { toast("Escreva algo antes de enviar."); return; }
+  sendingComment = true;
+  try {
+    await addDoc(collection(db, "comments"), { postId, authorUid: currentUser.uid, authorName: myProfile.characterName, text: text.slice(0, 300), createdAt: serverTimestamp() });
+    drafts[postId] = "";
+    if (input) input.value = "";
+  } catch (err) { console.error(err); toast(friendlyError(err)); }
+  finally { sendingComment = false; }
+}
+async function removeComment(id) {
+  if (!confirm("Apagar este comentário?")) return;
+  try { await deleteDoc(doc(db, "comments", id)); }
+  catch (err) { console.error(err); toast(friendlyError(err)); }
+}
 async function toggleLike(postId) {
   if (!currentUser || !myProfile) { openAuth("login"); return; }
   const ref = doc(db, "likes", `${postId}_${currentUser.uid}`);
@@ -233,8 +278,14 @@ async function toggleLike(postId) {
   try { liked ? await deleteDoc(ref) : await setDoc(ref, { postId, uid: currentUser.uid, createdAt: serverTimestamp() }); }
   catch (err) { console.error(err); toast(friendlyError(err)); }
 }
+document.addEventListener("input", (e) => { const i = e.target.closest && e.target.closest(".comment-input"); if (i) drafts[i.dataset.cinput] = i.value; });
+document.addEventListener("keydown", (e) => { const i = e.target.closest && e.target.closest(".comment-input"); if (i && e.key === "Enter") { e.preventDefault(); sendComment(i.dataset.cinput); } });
 document.addEventListener("click", (e) => {
   const l = e.target.closest("[data-like]"); if (l) { toggleLike(l.dataset.like); return; }
+  const c = e.target.closest("[data-comments]"); if (c) { const id = c.dataset.comments; openComments.has(id) ? openComments.delete(id) : openComments.add(id); renderPosts(); return; }
+  const s = e.target.closest("[data-csend]"); if (s) { sendComment(s.dataset.csend); return; }
+  const d = e.target.closest("[data-cdel]"); if (d) { removeComment(d.dataset.cdel); return; }
+  if (e.target.closest("[data-cauth]")) { openAuth("login"); return; }
   const u = e.target.closest("[data-profile]"); if (u) openProfile(u.dataset.profile);
 });
 
@@ -291,6 +342,7 @@ if (!configReady) {
     db = getFirestore(app);
     startFeed();
     startLikes();
+    startComments();
     renderSuggestions();
     onAuthStateChanged(auth, async (user) => {
       currentUser = user;
