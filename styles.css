@@ -141,3 +141,21 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .comment-input{flex:1;min-width:0;height:42px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.7)}
 .comment-send{margin-left:0;flex-shrink:0}
 .comment-login{border:0;background:none;color:var(--rose);font-weight:600;text-decoration:underline;justify-self:start;padding:0}
+
+/* v6: vários personagens */
+[hidden]{display:none!important}
+.as-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;color:var(--muted)}
+.char-select{height:34px;max-width:100%;padding:0 10px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.75);color:var(--plum);font-weight:500}
+.comment-compose{display:grid;gap:8px}
+.comment-as{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.char-list{display:grid;gap:8px;margin:12px 0}
+.char-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.6)}
+.char-info{display:grid;min-width:0;flex:1}
+.char-info strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.char-info small{font-size:12px;color:var(--muted)}
+.char-badge{font-size:12px;font-weight:600;color:var(--rose);border:1px solid var(--rose);border-radius:999px;padding:2px 10px}
+.char-use{height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.8);color:var(--taupe);font-weight:500}
+.char-row .comment-del{margin-left:0}
+.char-form{display:flex;gap:8px;align-items:center}
+.char-form input{flex:1;min-width:0;height:42px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.7)}
+.char-form .btn-primary{margin-left:0;flex-shrink:0}
