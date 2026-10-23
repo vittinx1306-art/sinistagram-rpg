@@ -1,17 +1,18 @@
-// COVEN — versão 5 (comentários): login, cadastro, publicações e feed em tempo real.
+// COVEN — versão 6 (vários personagens por conta): login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, runTransaction, getDocs, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit, runTransaction, getDocs, setDoc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
 let auth = null, db = null;
-let currentUser = null, myProfile = null, posts = [], profiles = [], likes = [], comments = [], signingUp = false, unsubscribeFeed = null;
+let currentUser = null, myProfile = null, posts = [], profiles = [], likes = [], comments = [], characters = [], activeId = null, signingUp = false, unsubscribeFeed = null;
 const openComments = new Set(), drafts = {};
-let sendingComment = false;
+let sendingComment = false, manageOpen = false;
+const MAX_CHARS = 10;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
 
@@ -27,6 +28,7 @@ function toast(message) {
   toast.timer = setTimeout(() => node.classList.remove("show"), 3500);
 }
 function showModal(title, copy, html = "") {
+  manageOpen = false;
   $("#modalContent").innerHTML = `<h2 class="modal-title">${escapeHTML(title)}</h2><p class="modal-copy">${escapeHTML(copy)}</p>${html}`;
   const m = $("#modal");
   if (!m.open) m.showModal();
@@ -61,19 +63,24 @@ function friendlyError(err) {
 
 /* ---------- interface conforme o estado de login ---------- */
 function setAuthUI() {
-  const logged = !!currentUser && !!myProfile;
-  const initial = myProfile?.characterName?.slice(0, 1).toUpperCase() || "?";
+  const ch = activeChar();
+  const logged = !!currentUser && !!myProfile && !!ch;
+  const shown = ch?.name || myProfile?.characterName || "";
+  const initial = shown.slice(0, 1).toUpperCase() || "?";
   $("#authButton").textContent = currentUser ? "Sair" : "Entrar";
   $("#postText").disabled = !logged;
   $("#publishButton").disabled = !logged;
-  $("#postText").placeholder = logged ? `O que está acontecendo, ${myProfile.characterName}?` : "Entre para publicar como seu personagem...";
-  $("#sidebarName").textContent = myProfile?.characterName || "Visitante";
-  $("#sidebarHandle").textContent = logged ? "Conectado" : "Entre para participar";
+  $("#postText").placeholder = logged ? `O que está acontecendo, ${ch.name}?` : "Entre para publicar como seu personagem...";
+  $("#sidebarName").textContent = shown || "Visitante";
+  $("#sidebarHandle").textContent = logged ? "Personagem ativo" : "Entre para participar";
   $("#sidebarAvatar").textContent = initial;
   $("#composerAvatar").textContent = initial;
-  const hh = hue(myProfile?.characterName);
+  const hh = hue(shown);
   $("#sidebarAvatar").style.setProperty("--h", hh);
   $("#composerAvatar").style.setProperty("--h", hh);
+  const mine = myCharacters();
+  $("#asRow").hidden = !(currentUser && mine.length > 1);
+  $("#charSelect").innerHTML = charOptions(mine, ch);
 }
 
 /* ---------- login / cadastro ---------- */
@@ -86,7 +93,7 @@ function openAuth(mode = "login") {
     <label>Senha<input name="password" type="password" minlength="6" autocomplete="${isSignup ? "new-password" : "current-password"}" required></label>
     <button class="btn-primary auth-submit" type="submit">${isSignup ? "Criar conta" : "Entrar"}</button>
     <p class="auth-switch">${isSignup ? "Já tem uma conta?" : "Ainda não tem conta?"} <button type="button" id="switchAuth">${isSignup ? "Entrar" : "Criar conta"}</button></p>
-    ${isSignup ? '<p class="auth-note">Um personagem por conta. Seu e-mail não aparece para ninguém, só o nome do personagem.</p>' : ""}
+    ${isSignup ? '<p class="auth-note">Você poderá criar até 10 personagens na mesma conta. Seu e-mail não aparece para ninguém, só o nome do personagem.</p>' : ""}
   </form>`;
   showModal(isSignup ? "Criar conta" : "Entrar", isSignup ? "Escolha o nome do seu personagem, um e-mail e uma senha." : "Use o e-mail e a senha da sua conta.", form);
   $("#switchAuth").addEventListener("click", () => openAuth(isSignup ? "login" : "signup"));
@@ -115,6 +122,7 @@ async function handleAuthSubmit(e, isSignup) {
           if ((await tx.get(claimRef)).exists()) throw new Error("Esse personagem já foi escolhido por outra conta.");
           tx.set(claimRef, { uid: cred.user.uid, characterName, createdAt: serverTimestamp() });
           tx.set(doc(db, "profiles", cred.user.uid), { uid: cred.user.uid, characterName, characterKey, createdAt: serverTimestamp() });
+          tx.set(doc(db, "characters", `${cred.user.uid}_0`), { ownerUid: cred.user.uid, slot: 0, name: characterName, key: characterKey, createdAt: serverTimestamp() });
         });
       } catch (err) {
         await cred.user.delete().catch(() => {});
@@ -143,9 +151,19 @@ async function handleAuthSubmit(e, isSignup) {
 async function loadMyProfile(user) {
   const snap = await getDoc(doc(db, "profiles", user.uid));
   myProfile = snap.exists() ? snap.data() : null;
+  loadActiveFromStorage();
+  if (myProfile) await ensureFirstCharacter(user);
   setAuthUI();
   renderPosts();
   if (!myProfile) showModal("Perfil não encontrado", "Esta conta não tem um personagem associado. Fale com a administração.");
+}
+// Contas criadas antes da v6 têm só o perfil: o personagem antigo vira o personagem 1.
+async function ensureFirstCharacter(user) {
+  try {
+    const q = await getDocs(query(collection(db, "characters"), where("ownerUid", "==", user.uid), limit(1)));
+    if (!q.empty) return;
+    await setDoc(doc(db, "characters", `${user.uid}_0`), { ownerUid: user.uid, slot: 0, name: myProfile.characterName, key: myProfile.characterKey, createdAt: serverTimestamp() });
+  } catch (err) { console.error(err); }
 }
 
 /* ---------- feed ---------- */
@@ -165,12 +183,19 @@ function tsMillis(ts) { return ts?.toMillis ? ts.toMillis() : Date.now(); }
 function commentsHTML(p) {
   const list = comments.filter((c) => c.postId === p.id).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
   const items = list.length ? list.map((c) => `<div class="comment" style="--h:${hue(c.authorName)}">
-      <button class="who" data-profile="${escapeHTML(c.authorUid)}" aria-label="Ver perfil"><span class="avatar sm" style="--h:${hue(c.authorName)}">${escapeHTML((c.authorName || "?").slice(0, 1).toUpperCase())}</span></button>
+      <button class="who" data-profile="${escapeHTML(postCharId(c))}" data-pname="${escapeHTML(c.authorName)}" aria-label="Ver perfil"><span class="avatar sm" style="--h:${hue(c.authorName)}">${escapeHTML((c.authorName || "?").slice(0, 1).toUpperCase())}</span></button>
       <div class="comment-body"><div class="comment-head"><strong>${escapeHTML(c.authorName)}</strong><small>${escapeHTML(relativeTime(c.createdAt))}</small>${currentUser && currentUser.uid === c.authorUid ? `<button class="comment-del" data-cdel="${escapeHTML(c.id)}" aria-label="Apagar comentário">×</button>` : ""}</div>
       <p>${formatText(c.text || "")}</p></div></div>`).join("") : '<p class="muted comment-empty">Nenhum comentário ainda.</p>';
-  const form = currentUser && myProfile
-    ? `<div class="comment-form"><input class="comment-input" data-cinput="${escapeHTML(p.id)}" maxlength="300" autocomplete="off" placeholder="Comentar como ${escapeHTML(myProfile.characterName)}..." value="${escapeHTML(drafts[p.id] || "")}"><button class="btn-primary comment-send" data-csend="${escapeHTML(p.id)}">Enviar</button></div>`
-    : `<button class="comment-login" data-cauth>Entre para comentar</button>`;
+  const mine = myCharacters(), ch = activeChar();
+  let form;
+  if (currentUser && myProfile && ch) {
+    const asRow = mine.length > 1 ? `<label class="comment-as">Comentando como <select class="char-select" aria-label="Personagem ativo">${charOptions(mine, ch)}</select></label>` : "";
+    form = `<div class="comment-compose">${asRow}<div class="comment-form"><input class="comment-input" data-cinput="${escapeHTML(p.id)}" maxlength="300" autocomplete="off" placeholder="Comentar como ${escapeHTML(ch.name)}..." value="${escapeHTML(drafts[p.id] || "")}"><button class="btn-primary comment-send" data-csend="${escapeHTML(p.id)}">Enviar</button></div></div>`;
+  } else if (currentUser && myProfile) {
+    form = '<p class="muted">Carregando personagens...</p>';
+  } else {
+    form = '<button class="comment-login" data-cauth>Entre para comentar</button>';
+  }
   return `<div class="comments">${items}${form}</div>`;
 }
 
@@ -186,7 +211,7 @@ function renderPosts() {
     const cn = comments.filter((c) => c.postId === p.id).length;
     const open = openComments.has(p.id);
     return `<article class="post" style="--h:${hue(p.authorName)}">
-    <button class="who" data-profile="${escapeHTML(p.authorUid)}"><span class="avatar" style="--h:${hue(p.authorName)}">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
+    <button class="who" data-profile="${escapeHTML(postCharId(p))}" data-pname="${escapeHTML(p.authorName)}"><span class="avatar" style="--h:${hue(p.authorName)}">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
     <span class="post-author"><strong>${escapeHTML(p.authorName)}</strong><small>@${escapeHTML(makeKey(p.authorName || ""))} · ${escapeHTML(relativeTime(p.createdAt))}</small></span></button>
     <p class="post-text">${formatText(p.text || "")}</p>
     <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button><button class="like cbtn${open ? " on" : ""}" data-comments="${escapeHTML(p.id)}" aria-expanded="${open}" aria-label="Comentários"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg> ${cn}</button></div>${open ? commentsHTML(p) : ""}</article>`;
@@ -205,14 +230,15 @@ function renderPosts() {
 }
 
 async function publishPost() {
-  if (!currentUser || !myProfile) { openAuth("login"); return; }
+  const ch = activeChar();
+  if (!currentUser || !myProfile || !ch) { openAuth("login"); return; }
   const text = $("#postText").value.trim();
   if (!text) { toast("Escreva algo antes de publicar."); return; }
   const btn = $("#publishButton");
   btn.disabled = true;
   btn.textContent = "Publicando...";
   try {
-    await addDoc(collection(db, "posts"), { authorUid: currentUser.uid, authorName: myProfile.characterName, text, createdAt: serverTimestamp() });
+    await addDoc(collection(db, "posts"), { authorUid: currentUser.uid, characterId: ch.id, authorName: ch.name, text, createdAt: serverTimestamp() });
     $("#postText").value = "";
     $("#charCount").textContent = "0";
     toast("Publicado!");
@@ -220,7 +246,7 @@ async function publishPost() {
     console.error(err);
     toast(friendlyError(err));
   } finally {
-    btn.disabled = !currentUser || !myProfile;
+    btn.disabled = !currentUser || !myProfile || !activeChar();
     btn.textContent = "Publicar";
   }
 }
@@ -230,17 +256,79 @@ function showConfigNeeded() {
 }
 
 /* ---------- sugestões reais (personagens cadastrados) ---------- */
-async function renderSuggestions() {
-  const box = $("#suggestedUsers");
-  if (!db) return;
+function renderSuggestions() {
+  const list = characters.slice(0, 20);
+  const av = (c, cls = "") => `<span class="avatar${cls}" style="--h:${hue(c.name)}">${escapeHTML((c.name || "?").slice(0, 1).toUpperCase())}</span>`;
+  $("#suggestedUsers").innerHTML = list.length ? list.slice(0, 12).map((c) => `<button class="suggested-user" data-profile="${escapeHTML(c.id)}" data-pname="${escapeHTML(c.name)}">${av(c)}<strong>${escapeHTML(c.name)}</strong></button>`).join("") : '<p class="muted">Ninguém se cadastrou ainda.</p>';
+  $("#stories").innerHTML = list.map((c) => `<button class="story" data-profile="${escapeHTML(c.id)}" data-pname="${escapeHTML(c.name)}">${av(c, " xl")}<small>${escapeHTML(c.name)}</small></button>`).join("");
+  $("#stories").hidden = !list.length;
+}
+
+/* ---------- v6: vários personagens por conta ---------- */
+const myCharacters = () => currentUser ? characters.filter((c) => c.ownerUid === currentUser.uid).sort((a, b) => a.slot - b.slot) : [];
+function activeChar() { const mine = myCharacters(); return mine.find((c) => c.id === activeId) || mine[0] || null; }
+function postCharId(p) { return p.characterId || `${p.authorUid}_0`; }
+function charOptions(mine, ch) { return mine.map((c) => `<option value="${escapeHTML(c.id)}"${ch && ch.id === c.id ? " selected" : ""}>${escapeHTML(c.name)}</option>`).join(""); }
+function loadActiveFromStorage() { try { activeId = currentUser ? localStorage.getItem(`coven_active_${currentUser.uid}`) : null; } catch (_) { activeId = null; } }
+function setActive(id) {
+  activeId = id;
+  try { if (currentUser) localStorage.setItem(`coven_active_${currentUser.uid}`, id); } catch (_) {}
+  setAuthUI();
+  renderPosts();
+}
+function startCharacters() {
+  onSnapshot(query(collection(db, "characters"), orderBy("createdAt", "desc"), limit(200)), (snap) => {
+    characters = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    setAuthUI(); renderSuggestions(); renderPosts();
+    if (manageOpen && $("#modal").open && !($("#newCharName") && $("#newCharName").value)) openManage();
+  }, (err) => { console.error(err); toast("Não foi possível carregar os personagens. Publique as regras novas do Firestore."); });
+}
+async function createCharacter(rawName) {
+  const mine = myCharacters();
+  if (mine.length >= MAX_CHARS) { toast("Você já tem 10 personagens."); return false; }
+  const name = rawName.trim(), key = makeKey(name);
+  if (name.length < 2 || !key) { toast("Escolha um nome com pelo menos 2 letras ou números."); return false; }
+  const used = new Set(mine.map((c) => c.slot));
+  let slot = 0; while (slot < MAX_CHARS && used.has(slot)) slot++;
+  if (slot >= MAX_CHARS) { toast("Você já tem 10 personagens."); return false; }
+  const uid = currentUser.uid;
   try {
-    const snap = await getDocs(query(collection(db, "profiles"), limit(12)));
-    const list = snap.docs.map((d) => d.data());
-    profiles = list;
-    box.innerHTML = list.length ? list.map((p) => `<button class="suggested-user" data-profile="${escapeHTML(p.uid)}"><span class="avatar" style="--h:${hue(p.characterName)}">${escapeHTML((p.characterName || "?").slice(0, 1).toUpperCase())}</span><strong>${escapeHTML(p.characterName)}</strong></button>`).join("") : '<p class="muted">Ninguém se cadastrou ainda.</p>';
-    $("#stories").innerHTML = list.map((p) => `<button class="story" data-profile="${escapeHTML(p.uid)}"><span class="avatar xl" style="--h:${hue(p.characterName)}">${escapeHTML((p.characterName || "?").slice(0, 1).toUpperCase())}</span><small>${escapeHTML(p.characterName)}</small></button>`).join("");
-    $("#stories").hidden = !list.length;
-  } catch (err) { console.error(err); }
+    await runTransaction(db, async (tx) => {
+      const claimRef = doc(db, "characterClaims", key), charRef = doc(db, "characters", `${uid}_${slot}`);
+      const claim = await tx.get(claimRef), taken = await tx.get(charRef);
+      if (taken.exists()) throw new Error("Essa vaga acabou de ser usada. Tente de novo.");
+      if (claim.exists() && claim.data().uid !== uid) throw new Error("Esse nome de personagem já foi escolhido.");
+      const finalName = claim.exists() ? claim.data().characterName : name;
+      if (!claim.exists()) tx.set(claimRef, { uid, characterName: name, createdAt: serverTimestamp() });
+      tx.set(charRef, { ownerUid: uid, slot, name: finalName, key, createdAt: serverTimestamp() });
+    });
+    toast("Personagem criado!");
+    return true;
+  } catch (err) { console.error(err); toast(friendlyError(err)); return false; }
+}
+async function deleteCharacter(id) {
+  const mine = myCharacters(), c = mine.find((x) => x.id === id);
+  if (!c) return;
+  if (mine.length <= 1) { toast("Você precisa manter pelo menos um personagem."); return; }
+  if (!confirm(`Excluir o personagem ${c.name}? As publicações dele continuam no feed.`)) return;
+  try { await deleteDoc(doc(db, "characters", id)); toast("Personagem excluído."); }
+  catch (err) { console.error(err); toast(friendlyError(err)); }
+}
+function openManage() {
+  if (!currentUser || !myProfile) { openAuth("login"); return; }
+  const mine = myCharacters(), ch = activeChar();
+  const rows = mine.map((c) => `<div class="char-row"><span class="avatar sm" style="--h:${hue(c.name)}">${escapeHTML(c.name.slice(0, 1).toUpperCase())}</span><span class="char-info"><strong>${escapeHTML(c.name)}</strong><small>@${escapeHTML(makeKey(c.name))}</small></span>${ch && ch.id === c.id ? '<span class="char-badge">Ativo</span>' : `<button class="char-use" data-use="${escapeHTML(c.id)}">Usar</button>`}<button class="comment-del" data-delchar="${escapeHTML(c.id)}" aria-label="Excluir personagem">×</button></div>`).join("");
+  const form = mine.length < MAX_CHARS
+    ? '<form id="charForm" class="char-form"><input id="newCharName" maxlength="40" autocomplete="off" placeholder="Nome do novo personagem" required><button class="btn-primary" type="submit">Criar</button></form>'
+    : '<p class="muted">Limite de 10 personagens atingido.</p>';
+  showModal("Meus personagens", `${mine.length} de ${MAX_CHARS} personagens`, `<div class="char-list">${rows}</div>${form}`);
+  manageOpen = true;
+  const f = $("#charForm");
+  if (f) f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("#newCharName");
+    if (await createCharacter(input.value)) { input.value = ""; openManage(); }
+  });
 }
 
 /* ---------- v3: curtidas reais, cores por personagem, perfis ---------- */
@@ -253,14 +341,15 @@ function startComments() {
   onSnapshot(query(collection(db, "comments"), orderBy("createdAt", "desc"), limit(1000)), (snap) => { comments = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderPosts(); }, (err) => { console.error(err); toast("Não foi possível carregar os comentários. Publique as regras novas do Firestore."); });
 }
 async function sendComment(postId) {
-  if (!currentUser || !myProfile) { openAuth("login"); return; }
+  const ch = activeChar();
+  if (!currentUser || !myProfile || !ch) { openAuth("login"); return; }
   if (sendingComment) return;
   const input = document.querySelector(`.comment-input[data-cinput="${CSS.escape(postId)}"]`);
   const text = (input ? input.value : drafts[postId] || "").trim();
   if (!text) { toast("Escreva algo antes de enviar."); return; }
   sendingComment = true;
   try {
-    await addDoc(collection(db, "comments"), { postId, authorUid: currentUser.uid, authorName: myProfile.characterName, text: text.slice(0, 300), createdAt: serverTimestamp() });
+    await addDoc(collection(db, "comments"), { postId, authorUid: currentUser.uid, characterId: ch.id, authorName: ch.name, text: text.slice(0, 300), createdAt: serverTimestamp() });
     drafts[postId] = "";
     if (input) input.value = "";
   } catch (err) { console.error(err); toast(friendlyError(err)); }
@@ -278,6 +367,7 @@ async function toggleLike(postId) {
   try { liked ? await deleteDoc(ref) : await setDoc(ref, { postId, uid: currentUser.uid, createdAt: serverTimestamp() }); }
   catch (err) { console.error(err); toast(friendlyError(err)); }
 }
+document.addEventListener("change", (e) => { const s = e.target.closest && e.target.closest(".char-select"); if (s) setActive(s.value); });
 document.addEventListener("input", (e) => { const i = e.target.closest && e.target.closest(".comment-input"); if (i) drafts[i.dataset.cinput] = i.value; });
 document.addEventListener("keydown", (e) => { const i = e.target.closest && e.target.closest(".comment-input"); if (i && e.key === "Enter") { e.preventDefault(); sendComment(i.dataset.cinput); } });
 document.addEventListener("click", (e) => {
@@ -286,7 +376,9 @@ document.addEventListener("click", (e) => {
   const s = e.target.closest("[data-csend]"); if (s) { sendComment(s.dataset.csend); return; }
   const d = e.target.closest("[data-cdel]"); if (d) { removeComment(d.dataset.cdel); return; }
   if (e.target.closest("[data-cauth]")) { openAuth("login"); return; }
-  const u = e.target.closest("[data-profile]"); if (u) openProfile(u.dataset.profile);
+  const us = e.target.closest("[data-use]"); if (us) { setActive(us.dataset.use); openManage(); return; }
+  const dc = e.target.closest("[data-delchar]"); if (dc) { deleteCharacter(dc.dataset.delchar); return; }
+  const u = e.target.closest("[data-profile]"); if (u) openProfile(u.dataset.profile, u.dataset.pname);
 });
 
 /* ---------- eventos (registrados primeiro, antes de qualquer coisa do Firebase) ---------- */
@@ -295,17 +387,16 @@ function goCompose() {
   $("#composer").scrollIntoView({ behavior: "smooth", block: "center" });
   $("#postText").focus({ preventScroll: true });
 }
-function openMyProfile() {
-  if (!myProfile) { openAuth("login"); return; }
-  openProfile(currentUser.uid);
-}
-function openProfile(uid) {
-  const p = profiles.find((x) => x.uid === uid) || (myProfile?.uid === uid ? myProfile : null) || { characterName: posts.find((x) => x.authorUid === uid)?.authorName || "Personagem" };
-  const mine = posts.filter((x) => x.authorUid === uid);
+function openMyProfile() { openManage(); }
+function openProfile(id, nameHint) {
+  let c = characters.find((x) => x.id === id) || null;
+  if (c && nameHint && c.name !== nameHint) c = null; // a vaga foi reaproveitada por outro personagem
+  const name = c?.name || nameHint || "Personagem";
+  const mine = posts.filter((x) => postCharId(x) === id && x.authorName === name);
   const got = likes.filter((l) => mine.some((x) => x.id === l.postId)).length;
-  const since = p.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString("pt-BR") : "";
+  const since = c?.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString("pt-BR") : "";
   const recent = mine.slice(0, 3).map((x) => `<p class="pcard-post">${formatText(x.text)}</p>`).join("");
-  showModal("Personagem", since ? `Na rede desde ${since}` : "Perfil público", `<div class="pcard" style="--h:${hue(p.characterName)}"><span class="avatar xl" style="--h:${hue(p.characterName)}">${escapeHTML(p.characterName.slice(0, 1).toUpperCase())}</span><h3>${escapeHTML(p.characterName)}</h3><p class="handle">@${escapeHTML(makeKey(p.characterName))}</p><div class="profile-stats"><div><strong>${mine.length}</strong><small>publicações</small></div><div><strong>${got}</strong><small>curtidas</small></div></div></div>${recent}`);
+  showModal("Personagem", since ? `Na rede desde ${since}` : "Perfil público", `<div class="pcard" style="--h:${hue(name)}"><span class="avatar xl" style="--h:${hue(name)}">${escapeHTML(name.slice(0, 1).toUpperCase())}</span><h3>${escapeHTML(name)}</h3><p class="handle">@${escapeHTML(makeKey(name))}</p><div class="profile-stats"><div><strong>${mine.length}</strong><small>publicações</small></div><div><strong>${got}</strong><small>curtidas</small></div></div></div>${recent}`);
 }
 $("#authButton").addEventListener("click", async () => {
   if (currentUser) {
@@ -328,6 +419,7 @@ $$(".nav-item").forEach((b) => b.addEventListener("click", () => {
 }));
 $("#openProfile").addEventListener("click", openMyProfile);
 $("#closeModal").addEventListener("click", () => $("#modal").close());
+$("#modal").addEventListener("close", () => { manageOpen = false; });
 $("#modal").addEventListener("click", (e) => { if (e.target === $("#modal")) $("#modal").close(); });
 
 /* ---------- Firebase (se falhar, a interface continua respondendo) ---------- */
@@ -343,10 +435,12 @@ if (!configReady) {
     startFeed();
     startLikes();
     startComments();
+    startCharacters();
     renderSuggestions();
     onAuthStateChanged(auth, async (user) => {
       currentUser = user;
       myProfile = null;
+      activeId = null;
       if (user && !signingUp) {
         try { await loadMyProfile(user); } catch (err) { console.error(err); toast(friendlyError(err)); }
       }
