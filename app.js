@@ -1,4 +1,4 @@
-// COVEN — versão 9 (perfil com foto e bio, tema vinho): login, cadastro, publicações e feed em tempo real.
+// COVEN — versão 10 (respostas aos comentários): login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
@@ -14,7 +14,7 @@ const openComments = new Set(), drafts = {};
 let sendingComment = false, manageOpen = false, pendingImage = null;
 const MAX_IMG = 130000; // tamanho máximo do texto da foto (data URL), ~95 KB de imagem
 const imgCache = new Map();
-let editState = null;
+let editState = null, replyingTo = null;
 const MAX_CHARS = 10;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
@@ -197,12 +197,34 @@ function startFeed() {
 }
 
 function tsMillis(ts) { return ts?.toMillis ? ts.toMillis() : Date.now(); }
-function commentsHTML(p) {
-  const list = comments.filter((c) => c.postId === p.id).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
-  const items = list.length ? list.map((c) => `<div class="comment" style="--h:${hue(c.authorName)}">
+function commentItemHTML(c, isReply) {
+  const own = currentUser && currentUser.uid === c.authorUid;
+  const rootId = isReply ? c.parentId : c.id;
+  const replyBtn = currentUser && myProfile
+    ? `<button class="reply-btn" data-reply="${escapeHTML(rootId)}" data-rname="${escapeHTML(c.authorName)}">Responder</button>`
+    : '<button class="reply-btn" data-cauth>Responder</button>';
+  return `<div class="comment${isReply ? " reply" : ""}" style="--h:${hue(c.authorName)}">
       <button class="who" data-profile="${escapeHTML(postCharId(c))}" data-pname="${escapeHTML(c.authorName)}" aria-label="Ver perfil">${avatarHTML(c.authorName, postCharId(c), " sm")}</button>
-      <div class="comment-body"><div class="comment-head"><strong>${escapeHTML(c.authorName)}</strong><small>${escapeHTML(relativeTime(c.createdAt))}</small>${currentUser && currentUser.uid === c.authorUid ? `<button class="comment-del" data-cdel="${escapeHTML(c.id)}" aria-label="Apagar comentário">×</button>` : ""}</div>
-      <p>${formatText(c.text || "")}</p></div></div>`).join("") : '<p class="muted comment-empty">Nenhum comentário ainda.</p>';
+      <div class="comment-body"><div class="comment-head"><strong>${escapeHTML(c.authorName)}</strong><small>${escapeHTML(relativeTime(c.createdAt))}</small>${own ? `<button class="comment-del" data-cdel="${escapeHTML(c.id)}" aria-label="Apagar ${isReply ? "resposta" : "comentário"}">×</button>` : ""}</div>
+      ${isReply && c.replyToName ? `<span class="reply-to">↳ respondendo a ${escapeHTML(c.replyToName)}</span>` : ""}
+      <p>${formatText(c.text || "")}</p>${replyBtn}</div></div>`;
+}
+function replyFormHTML(rootId, toName) {
+  const mine = myCharacters(), ch = activeChar();
+  if (!currentUser || !myProfile || !ch) return "";
+  const key = `r:${rootId}`;
+  const asRow = mine.length > 1 ? `<label class="comment-as">Respondendo como <select class="char-select" aria-label="Personagem ativo">${charOptions(mine, ch)}</select></label>` : "";
+  return `<div class="comment-compose reply-form">${asRow}<div class="comment-form"><input class="comment-input reply-input" data-cinput="${escapeHTML(key)}" maxlength="300" autocomplete="off" placeholder="Responder a ${escapeHTML(toName)}..." value="${escapeHTML(drafts[key] || "")}"><button class="btn-primary comment-send" data-csend="${escapeHTML(key)}">Enviar</button><button class="reply-cancel" data-replycancel>Cancelar</button></div></div>`;
+}
+function commentsHTML(p) {
+  const all = comments.filter((c) => c.postId === p.id).sort((a, b) => tsMillis(a.createdAt) - tsMillis(b.createdAt));
+  const tops = all.filter((c) => !c.parentId);
+  const items = tops.length ? tops.map((c) => {
+    const rs = all.filter((r) => r.parentId === c.id);
+    const open = !!replyingTo && replyingTo.rootId === c.id;
+    const thread = rs.length || open ? `<div class="replies">${rs.map((r) => commentItemHTML(r, true)).join("")}${open ? replyFormHTML(c.id, replyingTo.toName) : ""}</div>` : "";
+    return `<div class="comment-thread">${commentItemHTML(c, false)}${thread}</div>`;
+  }).join("") : '<p class="muted comment-empty">Nenhum comentário ainda.</p>';
   const mine = myCharacters(), ch = activeChar();
   let form;
   if (currentUser && myProfile && ch) {
@@ -448,18 +470,28 @@ function startLikes() {
 function startComments() {
   onSnapshot(query(collection(db, "comments"), orderBy("createdAt", "desc"), limit(1000)), (snap) => { comments = snap.docs.map((d) => ({ id: d.id, ...d.data() })); renderPosts(); }, (err) => { console.error(err); toast("Não foi possível carregar os comentários. Publique as regras novas do Firestore."); });
 }
-async function sendComment(postId) {
+async function sendComment(key) {
   const ch = activeChar();
   if (!currentUser || !myProfile || !ch) { openAuth("login"); return; }
   if (sendingComment) return;
-  const input = document.querySelector(`.comment-input[data-cinput="${CSS.escape(postId)}"]`);
-  const text = (input ? input.value : drafts[postId] || "").trim();
+  const isReply = key.startsWith("r:");
+  const root = isReply ? comments.find((c) => c.id === key.slice(2)) : null;
+  if (isReply && !root) { toast("Esse comentário não existe mais."); replyingTo = null; renderPosts(); return; }
+  const postId = isReply ? root.postId : key;
+  const input = document.querySelector(`.comment-input[data-cinput="${CSS.escape(key)}"]`);
+  const text = (input ? input.value : drafts[key] || "").trim();
   if (!text) { toast("Escreva algo antes de enviar."); return; }
   sendingComment = true;
   try {
-    await addDoc(collection(db, "comments"), { postId, authorUid: currentUser.uid, characterId: ch.id, authorName: ch.name, text: text.slice(0, 300), createdAt: serverTimestamp() });
-    drafts[postId] = "";
+    const data = { postId, authorUid: currentUser.uid, characterId: ch.id, authorName: ch.name, text: text.slice(0, 300), createdAt: serverTimestamp() };
+    if (isReply) {
+      data.parentId = root.id;
+      data.replyToName = (replyingTo && replyingTo.rootId === root.id ? replyingTo.toName : root.authorName).slice(0, 40);
+    }
+    await addDoc(collection(db, "comments"), data);
+    drafts[key] = "";
     if (input) input.value = "";
+    if (isReply) { replyingTo = null; renderPosts(); }
   } catch (err) { console.error(err); toast(friendlyError(err)); }
   finally { sendingComment = false; }
 }
@@ -483,9 +515,15 @@ async function deletePost(id) {
   } catch (err) { console.error(err); toast(friendlyError(err)); }
 }
 async function removeComment(id) {
-  if (!confirm("Apagar este comentário?")) return;
-  try { await deleteDoc(doc(db, "comments", id)); }
-  catch (err) { console.error(err); toast(friendlyError(err)); }
+  const rs = comments.filter((c) => c.parentId === id);
+  const msg = rs.length ? `Apagar este comentário e ${rs.length === 1 ? "a resposta" : `as ${rs.length} respostas`} dele?` : "Apagar isto?";
+  if (!confirm(msg)) return;
+  try {
+    const b = writeBatch(db);
+    b.delete(doc(db, "comments", id));
+    rs.forEach((r) => b.delete(doc(db, "comments", r.id)));
+    await b.commit();
+  } catch (err) { console.error(err); toast(friendlyError(err)); }
 }
 async function toggleLike(postId) {
   if (!currentUser || !myProfile) { openAuth("login"); return; }
@@ -500,6 +538,15 @@ document.addEventListener("keydown", (e) => { const i = e.target.closest && e.ta
 document.addEventListener("click", (e) => {
   const l = e.target.closest("[data-like]"); if (l) { toggleLike(l.dataset.like); return; }
   const c = e.target.closest("[data-comments]"); if (c) { const id = c.dataset.comments; openComments.has(id) ? openComments.delete(id) : openComments.add(id); renderPosts(); return; }
+  const rp = e.target.closest("[data-reply]");
+  if (rp) {
+    const same = replyingTo && replyingTo.rootId === rp.dataset.reply && replyingTo.toName === rp.dataset.rname;
+    replyingTo = same ? null : { rootId: rp.dataset.reply, toName: rp.dataset.rname };
+    renderPosts();
+    if (replyingTo) { const i = document.querySelector(".reply-input"); if (i) { i.focus({ preventScroll: true }); i.scrollIntoView({ block: "center", behavior: "smooth" }); } }
+    return;
+  }
+  if (e.target.closest("[data-replycancel]")) { replyingTo = null; renderPosts(); return; }
   const s = e.target.closest("[data-csend]"); if (s) { sendComment(s.dataset.csend); return; }
   const d = e.target.closest("[data-cdel]"); if (d) { removeComment(d.dataset.cdel); return; }
   const z = e.target.closest("[data-zoom]"); if (z) { const zp = posts.find((x) => x.id === z.dataset.zoom); if (zp) showModal(zp.authorName, zp.text || "", `<img class="zoom-img" src="${escapeHTML(imgSrc(zp))}" alt="Foto da publicação">`); return; }
