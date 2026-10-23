@@ -159,3 +159,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .char-form{display:flex;gap:8px;align-items:center}
 .char-form input{flex:1;min-width:0;height:42px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.7)}
 .char-form .btn-primary{margin-left:0;flex-shrink:0}
+
+/* v7 */
+.post-del{margin-left:auto;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:500}
+.post-del:hover{color:var(--rose);border-color:var(--rose)}
+.auth-switch button:disabled{opacity:.5}
