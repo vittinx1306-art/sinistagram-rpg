@@ -1,4 +1,4 @@
-// COVEN — versão 7 (excluir publicação e recuperar senha): login, cadastro, publicações e feed em tempo real.
+// COVEN — versão 8 (fotos nas publicações): login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
@@ -11,7 +11,9 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 let auth = null, db = null;
 let currentUser = null, myProfile = null, posts = [], profiles = [], likes = [], comments = [], characters = [], activeId = null, signingUp = false, unsubscribeFeed = null;
 const openComments = new Set(), drafts = {};
-let sendingComment = false, manageOpen = false;
+let sendingComment = false, manageOpen = false, pendingImage = null;
+const MAX_IMG = 130000; // tamanho máximo do texto da foto (data URL), ~95 KB de imagem
+const imgCache = new Map();
 const MAX_CHARS = 10;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
@@ -70,6 +72,8 @@ function setAuthUI() {
   $("#authButton").textContent = currentUser ? "Sair" : "Entrar";
   $("#postText").disabled = !logged;
   $("#publishButton").disabled = !logged;
+  $("#photoInput").disabled = !logged;
+  $("#photoLabel").setAttribute("aria-disabled", String(!logged));
   $("#postText").placeholder = logged ? `O que está acontecendo, ${ch.name}?` : "Entre para publicar como seu personagem...";
   $("#sidebarName").textContent = shown || "Visitante";
   $("#sidebarHandle").textContent = logged ? "Personagem ativo" : "Entre para participar";
@@ -225,7 +229,7 @@ function renderPosts() {
     return `<article class="post" style="--h:${hue(p.authorName)}">
     <button class="who" data-profile="${escapeHTML(postCharId(p))}" data-pname="${escapeHTML(p.authorName)}"><span class="avatar" style="--h:${hue(p.authorName)}">${escapeHTML((p.authorName || "?").slice(0, 1).toUpperCase())}</span>
     <span class="post-author"><strong>${escapeHTML(p.authorName)}</strong><small>@${escapeHTML(makeKey(p.authorName || ""))} · ${escapeHTML(relativeTime(p.createdAt))}</small></span></button>
-    <p class="post-text">${formatText(p.text || "")}</p>
+    ${p.text ? `<p class="post-text">${formatText(p.text)}</p>` : ""}${p.image ? `<img class="post-img" src="${escapeHTML(imgSrc(p))}" data-zoom="${escapeHTML(p.id)}" alt="Foto da publicação" decoding="async">` : ""}
     <div class="post-actions"><button class="like${on ? " on" : ""}" data-like="${escapeHTML(p.id)}" aria-pressed="${on}" aria-label="Curtir"><span>${on ? "♥" : "♡"}</span> ${n}</button><button class="like cbtn${open ? " on" : ""}" data-comments="${escapeHTML(p.id)}" aria-expanded="${open}" aria-label="Comentários"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg> ${cn}</button>${currentUser && currentUser.uid === p.authorUid ? `<button class="post-del" data-delpost="${escapeHTML(p.id)}" aria-label="Excluir publicação">Excluir</button>` : ""}</div>${open ? commentsHTML(p) : ""}</article>`;
   }).join("");
   if (keep) {
@@ -241,16 +245,85 @@ function renderPosts() {
   }
 }
 
+/* ---------- v8: fotos (reduzidas no aparelho e guardadas no próprio Firestore) ---------- */
+function loadImg(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), i = new Image();
+    i.onload = () => { URL.revokeObjectURL(url); res(i); };
+    i.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Não foi possível ler essa imagem.")); };
+    i.src = url;
+  });
+}
+function loadBitmap(file) {
+  if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => loadImg(file));
+  return loadImg(file);
+}
+async function compressImage(file) {
+  if (!/^image\//.test(file.type)) throw new Error("Escolha um arquivo de imagem.");
+  if (file.size > 25 * 1024 * 1024) throw new Error("Imagem muito grande. Escolha uma menor que 25 MB.");
+  const src = await loadBitmap(file);
+  const w0 = src.naturalWidth || src.width, h0 = src.naturalHeight || src.height;
+  let side = 960;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const scale = Math.min(1, side / Math.max(w0, h0));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(w0 * scale));
+    canvas.height = Math.max(1, Math.round(h0 * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
+    for (const q of [0.75, 0.65, 0.55, 0.45]) {
+      const url = canvas.toDataURL("image/jpeg", q);
+      if (url.length <= MAX_IMG) return url;
+    }
+    side = Math.round(side * 0.8);
+  }
+  throw new Error("Não consegui reduzir essa foto o bastante. Tente outra.");
+}
+function imgSrc(p) {
+  if (!p.image) return "";
+  let u = imgCache.get(p.id);
+  if (!u) {
+    try {
+      const b = atob(p.image.split(",")[1]), a = new Uint8Array(b.length);
+      for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i);
+      u = URL.createObjectURL(new Blob([a], { type: "image/jpeg" }));
+    } catch (_) { u = p.image; }
+    imgCache.set(p.id, u);
+  }
+  return u;
+}
+function clearPhoto() {
+  pendingImage = null;
+  $("#photoPreview").hidden = true;
+  $("#photoPreview img").removeAttribute("src");
+  $("#photoInput").value = "";
+}
+async function pickPhoto(file) {
+  if (!file) return;
+  const label = $("#photoLabel");
+  label.setAttribute("aria-disabled", "true");
+  try {
+    pendingImage = await compressImage(file);
+    $("#photoPreview img").src = pendingImage;
+    $("#photoPreview").hidden = false;
+  } catch (err) { console.error(err); toast(err?.message || "Não foi possível usar essa foto."); pendingImage = null; }
+  finally { $("#photoInput").value = ""; label.setAttribute("aria-disabled", String(!(currentUser && myProfile && activeChar()))); }
+}
+
 async function publishPost() {
   const ch = activeChar();
   if (!currentUser || !myProfile || !ch) { openAuth("login"); return; }
   const text = $("#postText").value.trim();
-  if (!text) { toast("Escreva algo antes de publicar."); return; }
+  if (!text && !pendingImage) { toast("Escreva algo ou escolha uma foto antes de publicar."); return; }
   const btn = $("#publishButton");
   btn.disabled = true;
   btn.textContent = "Publicando...";
   try {
-    await addDoc(collection(db, "posts"), { authorUid: currentUser.uid, characterId: ch.id, authorName: ch.name, text, createdAt: serverTimestamp() });
+    const data = { authorUid: currentUser.uid, characterId: ch.id, authorName: ch.name, text, createdAt: serverTimestamp() };
+    if (pendingImage) data.image = pendingImage;
+    await addDoc(collection(db, "posts"), data);
+    clearPhoto();
     $("#postText").value = "";
     $("#charCount").textContent = "0";
     toast("Publicado!");
@@ -406,6 +479,7 @@ document.addEventListener("click", (e) => {
   const c = e.target.closest("[data-comments]"); if (c) { const id = c.dataset.comments; openComments.has(id) ? openComments.delete(id) : openComments.add(id); renderPosts(); return; }
   const s = e.target.closest("[data-csend]"); if (s) { sendComment(s.dataset.csend); return; }
   const d = e.target.closest("[data-cdel]"); if (d) { removeComment(d.dataset.cdel); return; }
+  const z = e.target.closest("[data-zoom]"); if (z) { const zp = posts.find((x) => x.id === z.dataset.zoom); if (zp) showModal(zp.authorName, zp.text || "", `<img class="zoom-img" src="${escapeHTML(imgSrc(zp))}" alt="Foto da publicação">`); return; }
   const dp = e.target.closest("[data-delpost]"); if (dp) { deletePost(dp.dataset.delpost); return; }
   if (e.target.closest("[data-cauth]")) { openAuth("login"); return; }
   const us = e.target.closest("[data-use]"); if (us) { setActive(us.dataset.use); openManage(); return; }
@@ -427,7 +501,7 @@ function openProfile(id, nameHint) {
   const mine = posts.filter((x) => postCharId(x) === id && x.authorName === name);
   const got = likes.filter((l) => mine.some((x) => x.id === l.postId)).length;
   const since = c?.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString("pt-BR") : "";
-  const recent = mine.slice(0, 3).map((x) => `<p class="pcard-post">${formatText(x.text)}</p>`).join("");
+  const recent = mine.slice(0, 3).map((x) => `<p class="pcard-post">${x.text ? formatText(x.text) : "📷 Foto"}</p>`).join("");
   showModal("Personagem", since ? `Na rede desde ${since}` : "Perfil público", `<div class="pcard" style="--h:${hue(name)}"><span class="avatar xl" style="--h:${hue(name)}">${escapeHTML(name.slice(0, 1).toUpperCase())}</span><h3>${escapeHTML(name)}</h3><p class="handle">@${escapeHTML(makeKey(name))}</p><div class="profile-stats"><div><strong>${mine.length}</strong><small>publicações</small></div><div><strong>${got}</strong><small>curtidas</small></div></div></div>${recent}`);
 }
 $("#authButton").addEventListener("click", async () => {
@@ -438,6 +512,8 @@ $("#authButton").addEventListener("click", async () => {
   } else openAuth("login");
 });
 $("#publishButton").addEventListener("click", publishPost);
+$("#photoInput").addEventListener("change", (e) => pickPhoto(e.target.files && e.target.files[0]));
+$("#photoRemove").addEventListener("click", clearPhoto);
 $("#postText").addEventListener("input", (e) => { $("#charCount").textContent = e.target.value.length; });
 $("#postText").addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") publishPost(); });
 $("#searchInput").addEventListener("input", renderPosts);
