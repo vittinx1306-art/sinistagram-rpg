@@ -128,11 +128,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .avatar.sm{width:30px;height:30px;font-size:14px;box-shadow:0 0 0 2px #fff,0 0 0 3px hsl(var(--h) 22% 70%)}
 .comments{margin-top:12px;display:grid;gap:12px}
 .comment{display:flex;gap:10px;align-items:flex-start}
-.comment .who{border:0;background:none;padding:0;display:block}
+.comment .who{width:auto;flex:0 0 auto;border:0;background:none;padding:0;display:block}
 .comment-body{min-width:0;flex:1;background:rgba(255,255,255,.6);border:1px solid var(--line);border-radius:14px;padding:8px 12px}
 .comment-head{display:flex;align-items:baseline;gap:8px}
 .comment-head strong{font-size:14px}
 .comment-head small{font-size:12px;color:var(--muted)}
+.comment-head{flex-wrap:wrap}
 .comment-del{margin-left:auto;border:0;background:none;color:var(--muted);font-size:20px;line-height:1;padding:0 4px}
 .comment-body p{margin:2px 0 0;font-size:15px;overflow-wrap:anywhere}
 .comment-empty{padding:2px 4px}
