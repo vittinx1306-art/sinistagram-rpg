@@ -1,10 +1,10 @@
-/* COVEN — tema vinho: bordô, vinho e preto, com detalhes dourados.
+/* MEIO-SANGUE — tema Olimpo: azul-mar, noite e, dourado.
    Este arquivo só sobrescreve cores. Para voltar ao visual claro (pérola), o botão ◐ do topo
    desativa este arquivo; para remover de vez, apague o <link id="themeVinho"> do index.html. */
-:root{--bg:#0c0608;--ink:#f0e4dc;--muted:#a8929a;--mauve:#7b3342;--taupe:#c9a96a;--rose:#e0697c;--plum:#f1e3c8;--glass:rgba(38,13,21,.72);--edge:rgba(201,169,106,.24);--line:rgba(201,169,106,.17);--shadow:0 16px 44px -20px rgba(0,0,0,.9);--grad:linear-gradient(135deg,#9b2340,#4d0e1d);color-scheme:dark}
-body{background:radial-gradient(70vw 50vh at 88% -5%,rgba(125,22,45,.38),transparent 70%),radial-gradient(60vw 60vh at -5% 55%,rgba(85,12,30,.5),transparent 70%),linear-gradient(180deg,#130709,#090305);background-attachment:fixed}
-::placeholder{color:#7f6b73!important}
-select option{background:#1a0a10;color:var(--ink)}
+:root{--bg:#050c16;--ink:#e8eef5;--muted:#8fa3b8;--mauve:#2b5f8a;--taupe:#c9a96a;--rose:#5fb4e0;--plum:#f1e3c8;--glass:rgba(10,26,46,.72);--edge:rgba(201,169,106,.24);--line:rgba(201,169,106,.17);--shadow:0 16px 44px -20px rgba(0,0,0,.9);--grad:linear-gradient(135deg,#1f6fa8,#0b2f54);color-scheme:dark}
+body{background:radial-gradient(70vw 50vh at 88% -5%,rgba(30,110,170,.30),transparent 70%),radial-gradient(60vw 60vh at -5% 55%,rgba(15,60,110,.45),transparent 70%),linear-gradient(180deg,#08121f,#030710);background-attachment:fixed}
+::placeholder{color:#6b8097!important}
+select option{background:#0a1a2e;color:var(--ink)}
 
 /* tipografia */
 .brand-name,.mobile-brand,.modal-label{font-family:Cinzel,"Cormorant Garamond",serif}
@@ -18,16 +18,16 @@ select option{background:#1a0a10;color:var(--ink)}
 /* navegação e topo */
 .brand-mark{color:#f6e6c8;border:1px solid rgba(201,169,106,.45);box-shadow:inset 0 1px 0 rgba(255,214,150,.3),var(--shadow)}
 .nav-item:hover{background:rgba(255,255,255,.06);color:var(--ink)}
-.nav-item.active{background:rgba(155,35,64,.3);color:var(--plum);box-shadow:inset 0 0 0 1px var(--edge)}
+.nav-item.active{background:rgba(31,111,168,.3);color:var(--plum);box-shadow:inset 0 0 0 1px var(--edge)}
 .user-mini{background:rgba(255,255,255,.04)}
 .search-box{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--taupe)}
 .bottom-nav .nav-item.active{background:none;box-shadow:none}
 
 /* botões */
-.btn-primary{color:#f8ecd9;border:1px solid rgba(201,169,106,.4);box-shadow:inset 0 1px 0 rgba(255,214,150,.22),0 8px 20px -8px rgba(155,35,64,.75)}
+.btn-primary{color:#f8ecd9;border:1px solid rgba(201,169,106,.4);box-shadow:inset 0 1px 0 rgba(255,214,150,.22),0 8px 20px -8px rgba(31,111,168,.75)}
 .like,.btn-photo,.char-use,.char-select,.theme-btn{background:rgba(255,255,255,.05);color:var(--taupe)}
 .char-select{color:var(--plum)}
-.like.on{background:rgba(155,35,64,.3);color:#ff9fae;border-color:#c0405a}
+.like.on{background:rgba(31,111,168,.3);color:#9fd8ff;border-color:#3f8fc7}
 .post-del{color:var(--muted)}
 
 /* cartões e vidro */
@@ -37,13 +37,13 @@ select option{background:#1a0a10;color:var(--ink)}
 .pcard-bio{color:var(--ink);opacity:.9}
 
 /* avatares: cor do personagem, mais ricas no escuro */
-.avatar{color:#f6e6c8;background:linear-gradient(145deg,hsl(var(--h) 52% 40%),hsl(calc(var(--h) + 10) 58% 20%));box-shadow:0 0 0 2px #14090d,0 0 0 3px hsl(var(--h) 45% 60%),0 6px 14px -6px rgba(0,0,0,.85)}
-.avatar.sm{box-shadow:0 0 0 2px #14090d,0 0 0 3px hsl(var(--h) 45% 60%)}
+.avatar{color:#f6e6c8;background:linear-gradient(145deg,hsl(var(--h) 52% 40%),hsl(calc(var(--h) + 10) 58% 20%));box-shadow:0 0 0 2px #07111d,0 0 0 3px hsl(var(--h) 45% 60%),0 6px 14px -6px rgba(0,0,0,.85)}
+.avatar.sm{box-shadow:0 0 0 2px #07111d,0 0 0 3px hsl(var(--h) 45% 60%)}
 
 /* campos de texto */
 .auth-form input,.char-form input,.comment-input,.edit-field textarea{background:rgba(255,255,255,.06);color:var(--ink);border-color:var(--line)}
 
 /* modal e aviso */
-.app-modal{background:rgba(24,8,14,.97);color:var(--ink);box-shadow:0 30px 80px -20px #000}
+.app-modal{background:rgba(7,18,32,.97);color:var(--ink);box-shadow:0 30px 80px -20px #000}
 .app-modal::backdrop{background:rgba(0,0,0,.7)}
-.toast{background:#2a0e17;color:var(--ink);border:1px solid var(--edge)}
+.toast{background:#0d2238;color:var(--ink);border:1px solid var(--edge)}
