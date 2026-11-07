@@ -1,0 +1,47 @@
+/* MEIO-SANGUE — visual moderno (escuro, azul elétrico, toques dourados). Só sobrescreve o styles.css.
+   O botão ◐ do topo desativa este arquivo (volta ao visual claro). */
+:root{--bg:#070b14;--surface:#0e1626;--surface2:#151f34;--ink:#eaf0f9;--muted:#8b9ab1;--mauve:#2b5f8a;--taupe:#9fb0c8;--rose:#4cc2ff;--plum:#fff;--glass:#0e1626;--edge:rgba(255,255,255,.07);--line:rgba(255,255,255,.08);--shadow:none;--grad:linear-gradient(135deg,#2f8cff,#6a5cff);--gold:#e3bf7a;color-scheme:dark}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(900px 520px at 85% -10%,rgba(47,140,255,.18),transparent 65%),radial-gradient(700px 500px at -10% 40%,rgba(106,92,255,.12),transparent 65%),var(--bg);background-attachment:fixed}
+::placeholder{color:#5d6d85!important}
+select option{background:#0e1626;color:var(--ink)}
+.feed-title,.panel h2,.modal-title,.pcard h3,.profile-stats strong,.empty-state h3,.brand-name,.mobile-brand,.modal-label,.avatar,.brand-mark{font-family:Inter,system-ui,sans-serif}
+.glass,.composer,.post,.panel,.empty-state,.app-modal,.sidebar,.topbar,.bottom-nav{background:var(--surface);backdrop-filter:none;border:1px solid var(--line)}
+.sidebar{background:#0a111e;border-width:0 1px 0 0}
+.topbar{background:rgba(7,11,20,.82);backdrop-filter:blur(14px);border-width:0 0 1px}
+.bottom-nav{background:rgba(10,17,30,.94);backdrop-filter:blur(14px)}
+.composer,.post,.panel,.empty-state{border-radius:20px;box-shadow:none}
+.post{transition:border-color .2s}.post:hover{border-color:rgba(76,194,255,.3)}
+.content{max-width:1080px;gap:20px}
+.brand-mark{background:var(--grad);color:#fff;border:0;border-radius:12px;font:700 20px Inter,sans-serif;box-shadow:0 8px 22px -8px rgba(47,140,255,.8)}
+.brand-name{font-size:17px;font-weight:800;letter-spacing:.12em}
+.brand-name small{font-weight:500;letter-spacing:.04em}
+.mobile-brand{font-size:17px;font-weight:800}
+.nav-item{border-radius:12px;color:var(--muted)}
+.nav-item:hover{background:var(--surface2);color:var(--ink)}
+.nav-item.active{background:rgba(47,140,255,.15);color:#fff;box-shadow:none}
+.nav-icon{color:var(--rose)}
+.user-mini{background:var(--surface2);border-color:var(--line)}
+.search-box{background:var(--surface2);border-color:var(--line);color:var(--muted)}
+.btn-primary{background:var(--grad);color:#fff;border:0;box-shadow:0 8px 22px -10px rgba(47,140,255,.9)}
+.like,.btn-photo,.char-use,.char-select,.theme-btn,.post-del{background:var(--surface2);border:1px solid var(--line);color:var(--taupe)}
+.char-select{color:var(--ink)}
+.like.on{background:rgba(76,194,255,.14);border-color:var(--rose);color:var(--rose)}
+.post-del:hover{color:#ff8a9a;border-color:#ff8a9a}
+.hashtag,.reply-btn,.auth-switch button,.comment-login,.char-badge{color:var(--rose)}
+.char-badge{border-color:var(--rose)}
+.feed-title{font-size:20px;font-weight:700}
+.panel h2{font-size:15px;font-weight:700}
+.comment-body,.pcard-post,.char-row{background:var(--surface2);border-color:var(--line)}
+.comment-input,.char-form input,.auth-form input,.edit-field textarea{background:var(--surface2);color:var(--ink);border-color:var(--line)}
+.char-form{flex-wrap:wrap}.char-form .char-select{flex:1 1 100%;height:42px;padding:0 14px}
+.avatar{color:#fff;background:linear-gradient(145deg,hsl(var(--h) 65% 52%),hsl(calc(var(--h) + 25) 70% 36%));box-shadow:0 0 0 2px var(--surface),0 0 0 3px hsl(var(--h) 60% 60%)}
+.avatar.sm{box-shadow:0 0 0 2px var(--surface),0 0 0 3px hsl(var(--h) 60% 60%)}
+.pcard{background:radial-gradient(circle at 50% 0,hsl(var(--h) 55% 26%),transparent 80%),var(--surface2);border:1px solid var(--line);box-shadow:none}
+.pcard h3{font-size:24px;color:#fff}
+.pcard-god{color:var(--gold);font-weight:500}
+.modal-title{font-size:22px;color:#fff}
+.modal-label{font-size:12px;font-weight:800;letter-spacing:.2em;color:var(--rose)}
+.app-modal{background:#0b1322;color:var(--ink);box-shadow:0 30px 80px -20px #000}
+.app-modal::backdrop{background:rgba(0,0,0,.65);backdrop-filter:blur(4px)}
+.toast{background:var(--surface2);color:var(--ink);border:1px solid var(--line)}
+.replies{border-left-color:var(--line)}
