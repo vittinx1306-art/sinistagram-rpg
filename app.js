@@ -1,4 +1,4 @@
-// COVEN — versão 10 (respostas aos comentários): login, cadastro, publicações e feed em tempo real.
+// MEIO-SANGUE (base: COVEN v10) — versão 11 (tema Olimpo + pai/mãe divino e chalés): login, cadastro, publicações e feed em tempo real.
 // Usa apenas Firebase Authentication + Firestore (sem Storage, sem plano pago).
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
@@ -15,7 +15,11 @@ let sendingComment = false, manageOpen = false, pendingImage = null;
 const MAX_IMG = 130000; // tamanho máximo do texto da foto (data URL), ~95 KB de imagem
 const imgCache = new Map();
 let editState = null, replyingTo = null;
-const MAX_CHARS = 10;
+const MAX_CHARS = 10, MAX_KIDS = 4;
+const GODS = [["zeus","Zeus","1"],["hera","Hera","2"],["poseidon","Poseidon","3"],["demeter","Deméter","4"],["ares","Ares","5"],["atena","Atena","6"],["apolo","Apolo","7"],["artemis","Ártemis","8"],["hefesto","Hefesto","9"],["afrodite","Afrodite","10"],["hermes","Hermes","11"],["dionisio","Dionísio","12"],["hades","Hades","13"]];
+const godName = (id) => (GODS.find((g) => g[0] === id) || [])[1] || "";
+const godCabin = (id) => (GODS.find((g) => g[0] === id) || [])[2] || "";
+const godSelect = (id) => `<select ${id ? `id="${id}"` : ""} name="god" class="char-select" required aria-label="Pai ou mãe divino"><option value="">Pai/mãe divino…</option>${GODS.map((g) => `<option value="${g[0]}">${g[1]} (Chalé ${g[2]})</option>`).join("")}</select>`;
 
 const configReady = !!firebaseConfig && !!firebaseConfig.apiKey && !/^COLE_|^SEU_/.test(firebaseConfig.apiKey) && !!firebaseConfig.projectId && !/^SEU_/.test(firebaseConfig.projectId);
 
@@ -93,13 +97,13 @@ function openAuth(mode = "login") {
   if (!configReady || !auth) { showConfigNeeded(); return; }
   const isSignup = mode === "signup";
   const form = `<form id="authForm" class="auth-form">
-    ${isSignup ? `<label>Nome do personagem<input name="characterName" maxlength="40" placeholder="Nome do seu personagem" required></label>` : ""}
+    ${isSignup ? `<label>Nome do personagem<input name="characterName" maxlength="40" placeholder="Nome do seu personagem" required></label><label>Pai/mãe divino${godSelect("")}</label>` : ""}
     <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
     <label>Senha<input name="password" type="password" minlength="6" autocomplete="${isSignup ? "new-password" : "current-password"}" required></label>
     <button class="btn-primary auth-submit" type="submit">${isSignup ? "Criar conta" : "Entrar"}</button>
     ${isSignup ? "" : '<p class="auth-switch"><button type="button" id="forgotPass">Esqueci minha senha</button></p>'}
     <p class="auth-switch">${isSignup ? "Já tem uma conta?" : "Ainda não tem conta?"} <button type="button" id="switchAuth">${isSignup ? "Entrar" : "Criar conta"}</button></p>
-    ${isSignup ? '<p class="auth-note">Você poderá criar até 10 personagens na mesma conta. Seu e-mail não aparece para ninguém, só o nome do personagem.</p>' : ""}
+    ${isSignup ? '<p class="auth-note">Você poderá criar até 10 personagens na mesma conta. Cada deus aceita no máximo 4 filhos. Seu e-mail não aparece para ninguém, só o nome do personagem.</p>' : ""}
   </form>`;
   showModal(isSignup ? "Criar conta" : "Entrar", isSignup ? "Escolha o nome do seu personagem, um e-mail e uma senha." : "Use o e-mail e a senha da sua conta.", form);
   $("#switchAuth").addEventListener("click", () => openAuth(isSignup ? "login" : "signup"));
@@ -131,15 +135,20 @@ async function handleAuthSubmit(e, isSignup) {
       const characterName = String(fd.get("characterName")).trim();
       const characterKey = makeKey(characterName);
       if (characterName.length < 2 || !characterKey) throw new Error("Escolha um nome de personagem com pelo menos 2 letras ou números.");
+      const parent = String(fd.get("god"));
+      if (!godName(parent)) throw new Error("Escolha o pai ou a mãe divino do personagem.");
       signingUp = true;
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       try {
         await runTransaction(db, async (tx) => {
           const claimRef = doc(db, "characterClaims", characterKey);
           if ((await tx.get(claimRef)).exists()) throw new Error("Esse personagem já foi escolhido por outra conta.");
+          const cabRef = doc(db, "cabins", parent), cab = await tx.get(cabRef), n = cab.exists() ? cab.data().count : 0;
+          if (n >= MAX_KIDS) throw new Error(`O Chalé ${godCabin(parent)} (${godName(parent)}) já está cheio (4 filhos).`);
+          tx.set(cabRef, { count: n + 1 });
           tx.set(claimRef, { uid: cred.user.uid, characterName, createdAt: serverTimestamp() });
           tx.set(doc(db, "profiles", cred.user.uid), { uid: cred.user.uid, characterName, characterKey, createdAt: serverTimestamp() });
-          tx.set(doc(db, "characters", `${cred.user.uid}_0`), { ownerUid: cred.user.uid, slot: 0, name: characterName, key: characterKey, createdAt: serverTimestamp() });
+          tx.set(doc(db, "characters", `${cred.user.uid}_0`), { ownerUid: cred.user.uid, slot: 0, name: characterName, key: characterKey, parent, createdAt: serverTimestamp() });
         });
       } catch (err) {
         await cred.user.delete().catch(() => {});
@@ -413,7 +422,8 @@ function startCharacters() {
     if (manageOpen && $("#modal").open && !($("#newCharName") && $("#newCharName").value)) openManage();
   }, (err) => { console.error(err); toast("Não foi possível carregar os personagens. Publique as regras novas do Firestore."); });
 }
-async function createCharacter(rawName) {
+async function createCharacter(rawName, parent) {
+  if (!godName(parent)) { toast("Escolha o pai ou a mãe divino."); return false; }
   const mine = myCharacters();
   if (mine.length >= MAX_CHARS) { toast("Você já tem 10 personagens."); return false; }
   const name = rawName.trim(), key = makeKey(name);
@@ -425,12 +435,15 @@ async function createCharacter(rawName) {
   try {
     await runTransaction(db, async (tx) => {
       const claimRef = doc(db, "characterClaims", key), charRef = doc(db, "characters", `${uid}_${slot}`);
+      const cabRef = doc(db, "cabins", parent), cab = await tx.get(cabRef), n = cab.exists() ? cab.data().count : 0;
+      if (n >= MAX_KIDS) throw new Error(`O Chalé ${godCabin(parent)} (${godName(parent)}) já está cheio (4 filhos).`);
       const claim = await tx.get(claimRef), taken = await tx.get(charRef);
       if (taken.exists()) throw new Error("Essa vaga acabou de ser usada. Tente de novo.");
       if (claim.exists() && claim.data().uid !== uid) throw new Error("Esse nome de personagem já foi escolhido.");
       const finalName = claim.exists() ? claim.data().characterName : name;
       if (!claim.exists()) tx.set(claimRef, { uid, characterName: name, createdAt: serverTimestamp() });
-      tx.set(charRef, { ownerUid: uid, slot, name: finalName, key, createdAt: serverTimestamp() });
+      tx.set(cabRef, { count: n + 1 });
+      tx.set(charRef, { ownerUid: uid, slot, name: finalName, key, parent, createdAt: serverTimestamp() });
     });
     toast("Personagem criado!");
     return true;
@@ -441,15 +454,22 @@ async function deleteCharacter(id) {
   if (!c) return;
   if (mine.length <= 1) { toast("Você precisa manter pelo menos um personagem."); return; }
   if (!confirm(`Excluir o personagem ${c.name}? As publicações dele continuam no feed.`)) return;
-  try { await deleteDoc(doc(db, "characters", id)); toast("Personagem excluído."); }
+  try {
+    await runTransaction(db, async (tx) => {
+      const cabRef = c.parent ? doc(db, "cabins", c.parent) : null, cab = cabRef ? await tx.get(cabRef) : null;
+      if (cab && cab.exists() && cab.data().count > 0) tx.set(cabRef, { count: cab.data().count - 1 });
+      tx.delete(doc(db, "characters", id));
+    });
+    toast("Personagem excluído.");
+  }
   catch (err) { console.error(err); toast(friendlyError(err)); }
 }
 function openManage() {
   if (!currentUser || !myProfile) { openAuth("login"); return; }
   const mine = myCharacters(), ch = activeChar();
-  const rows = mine.map((c) => `<div class="char-row">${avatarHTML(c.name, c.id, " sm")}<span class="char-info"><strong>${escapeHTML(c.name)}</strong><small>@${escapeHTML(makeKey(c.name))}</small></span>${ch && ch.id === c.id ? '<span class="char-badge">Ativo</span>' : `<button class="char-use" data-use="${escapeHTML(c.id)}">Usar</button>`}<button class="char-use" data-editchar="${escapeHTML(c.id)}">Editar</button><button class="comment-del" data-delchar="${escapeHTML(c.id)}" aria-label="Excluir personagem">×</button></div>`).join("");
+  const rows = mine.map((c) => `<div class="char-row">${avatarHTML(c.name, c.id, " sm")}<span class="char-info"><strong>${escapeHTML(c.name)}</strong><small>@${escapeHTML(makeKey(c.name))}${c.parent ? ` · ${escapeHTML(godName(c.parent))}` : ""}</small></span>${ch && ch.id === c.id ? '<span class="char-badge">Ativo</span>' : `<button class="char-use" data-use="${escapeHTML(c.id)}">Usar</button>`}<button class="char-use" data-editchar="${escapeHTML(c.id)}">Editar</button><button class="comment-del" data-delchar="${escapeHTML(c.id)}" aria-label="Excluir personagem">×</button></div>`).join("");
   const form = mine.length < MAX_CHARS
-    ? '<form id="charForm" class="char-form"><input id="newCharName" maxlength="40" autocomplete="off" placeholder="Nome do novo personagem" required><button class="btn-primary" type="submit">Criar</button></form>'
+    ? '<form id="charForm" class="char-form"><input id="newCharName" maxlength="40" autocomplete="off" placeholder="Nome do novo personagem" required>' + godSelect("newCharGod") + '<button class="btn-primary" type="submit">Criar</button></form>'
     : '<p class="muted">Limite de 10 personagens atingido.</p>';
   showModal("Meus personagens", `${mine.length} de ${MAX_CHARS} personagens`, `<div class="char-list">${rows}</div>${form}`);
   manageOpen = true;
@@ -457,7 +477,7 @@ function openManage() {
   if (f) f.addEventListener("submit", async (e) => {
     e.preventDefault();
     const input = $("#newCharName");
-    if (await createCharacter(input.value)) { input.value = ""; openManage(); }
+    if (await createCharacter(input.value, $("#newCharGod").value)) { input.value = ""; openManage(); }
   });
 }
 
@@ -576,7 +596,7 @@ function openProfile(id, nameHint) {
   const recent = mine.slice(0, 3).map((x) => `<p class="pcard-post">${x.text ? formatText(x.text) : "📷 Foto"}</p>`).join("");
   const own = !!(c && currentUser && c.ownerUid === currentUser.uid);
   const bio = c?.bio ? `<p class="pcard-bio">${formatText(c.bio)}</p>` : own ? '<p class="pcard-bio muted">Sem bio ainda. Toque em Editar perfil para escrever uma.</p>' : "";
-  showModal("Personagem", since ? `Na rede desde ${since}` : "Perfil público", `<div class="pcard" style="--h:${hue(name)}">${avatarHTML(name, id, " xl")}<h3>${escapeHTML(name)}</h3><p class="handle">@${escapeHTML(makeKey(name))}</p>${bio}<div class="profile-stats"><div><strong>${mine.length}</strong><small>publicações</small></div><div><strong>${nc}</strong><small>comentários</small></div><div><strong>${got}</strong><small>curtidas</small></div></div>${own ? `<button class="btn-primary pcard-edit" data-editchar="${escapeHTML(id)}">Editar perfil</button>` : ""}</div>${recent}`);
+  showModal("Personagem", since ? `Na rede desde ${since}` : "Perfil público", `<div class="pcard" style="--h:${hue(name)}">${avatarHTML(name, id, " xl")}<h3>${escapeHTML(name)}</h3><p class="handle">@${escapeHTML(makeKey(name))}</p>${c?.parent ? `<p class="pcard-god">⚡ Filho(a) de ${escapeHTML(godName(c.parent))} · Chalé ${godCabin(c.parent)}</p>` : ""}${bio}<div class="profile-stats"><div><strong>${mine.length}</strong><small>publicações</small></div><div><strong>${nc}</strong><small>comentários</small></div><div><strong>${got}</strong><small>curtidas</small></div></div>${own ? `<button class="btn-primary pcard-edit" data-editchar="${escapeHTML(id)}">Editar perfil</button>` : ""}</div>${recent}`);
 }
 function openEditChar(id) {
   const c = myCharacters().find((x) => x.id === id);
@@ -612,7 +632,7 @@ function openEditChar(id) {
 }
 $("#authButton").addEventListener("click", async () => {
   if (currentUser) {
-    if (confirm("Deseja sair do COVEN?")) {
+    if (confirm("Deseja sair do MEIO-SANGUE?")) {
       try { await signOut(auth); toast("Você saiu."); } catch (err) { toast(friendlyError(err)); }
     }
   } else openAuth("login");
