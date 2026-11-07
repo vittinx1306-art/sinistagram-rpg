@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0c0608">
-  <title>COVEN</title>
+  <meta name="theme-color" content="#050c16">
+  <title>MEIO-SANGUE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=10">
-  <link id="themeVinho" rel="stylesheet" href="tema-vinho.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=11">
+  <link id="themeVinho" rel="stylesheet" href="tema-vinho.css?v=11">
   <script>try{if(localStorage.getItem("coven_theme")==="perola")document.getElementById("themeVinho").disabled=true}catch(e){}</script>
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
-      <a class="brand" href="#" aria-label="COVEN início">
-        <span class="brand-mark">C</span>
-        <span class="brand-name">COVEN<small>Rede de personagens</small></span>
+      <a class="brand" href="#" aria-label="MEIO-SANGUE início">
+        <span class="brand-mark">Ψ</span>
+        <span class="brand-name">MEIO-SANGUE<small>Mensagem de Íris</small></span>
       </a>
       <nav class="main-nav" aria-label="Navegação principal">
         <button class="nav-item active" data-view="feed"><span class="nav-icon">⌂</span> Início</button>
@@ -30,7 +30,7 @@
 
     <main class="main">
       <header class="topbar">
-        <div class="mobile-brand"><span class="brand-mark">C</span><strong>COVEN</strong></div>
+        <div class="mobile-brand"><span class="brand-mark">Ψ</span><strong>MEIO-SANGUE</strong></div>
         <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Buscar publicações ou personagens" aria-label="Buscar"></label>
         <button class="theme-btn" id="themeBtn" aria-label="Alternar tema" title="Alternar tema">◐</button>
         <button class="btn-primary" id="authButton">Entrar</button>
@@ -51,17 +51,17 @@
               <button id="publishButton" class="btn-primary" disabled>Publicar</button></div>
           </section>
 
-          <h2 class="feed-title" id="feedHeading">Publicações recentes</h2>
+          <h2 class="feed-title" id="feedHeading">Mensagens de Íris</h2>
           <div id="postFeed" class="post-feed" aria-live="polite"></div>
-          <div id="emptyState" class="empty-state" hidden><h3>Nada por aqui ainda</h3><p>Seja a primeira pessoa a publicar.</p></div>
+          <div id="emptyState" class="empty-state" hidden><h3>O acampamento está silencioso</h3><p>Seja a primeira pessoa a publicar.</p></div>
         </section>
 
         <aside class="right-column">
           <section class="panel">
-            <h2>Personagens na rede</h2>
+            <h2>Semideuses no acampamento</h2>
             <div id="suggestedUsers"><p class="muted">Ninguém se cadastrou ainda.</p></div>
           </section>
-          <footer class="site-footer">© COVEN</footer>
+          <footer class="site-footer">© MEIO-SANGUE</footer>
         </aside>
       </div>
     </main>
@@ -75,9 +75,9 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <dialog id="modal" class="app-modal">
-    <div class="modal-head"><span class="modal-label">COVEN</span><button id="closeModal" class="modal-close" aria-label="Fechar">×</button></div>
+    <div class="modal-head"><span class="modal-label">MEIO-SANGUE</span><button id="closeModal" class="modal-close" aria-label="Fechar">×</button></div>
     <div id="modalContent"></div>
   </dialog>
-  <script type="module" src="app.js?v=10"></script>
+  <script type="module" src="app.js?v=11"></script>
 </body>
 </html>
